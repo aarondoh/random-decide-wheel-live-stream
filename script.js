@@ -8,6 +8,7 @@ let isSpinning = false;
 let webhookServer = null;
 let processedWebhooks = new Map(); // Track processed webhooks with timestamps: hash -> timestamp
 let giftCombos = new Map(); // Track gift combos: "username-giftId" -> {coins, repeatCount, timestamp, processed}
+let pendingGifts = new Map(); // Track pending gifts waiting for combo: "username-giftId" -> {data, timeoutId}
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -461,6 +462,112 @@ function startWebhookListener() {
     logStatus('Connected to webhook server');
 }
 
+// Process gift and add participants (actual processing logic)
+function processGift(data) {
+    const username = data.username;
+    const coinValue = data.coinValue || 0;
+    const giftCount = data.giftCount || 1;
+    const giftId = data.raw?.giftId || 'unknown';
+    const repeatCount = parseInt(data.raw?.repeatCount || data.giftCount || 1);
+    const comboKey = `${username}-${giftId}`;
+
+    console.log(`[Processing Gift] ${username}: ${repeatCount}x gift, ${coinValue} coins`);
+
+    // If minCoins is disabled (0), use old behavior (gift count based)
+    if (minCoins === 0 || minCoins === null) {
+        // Initialize user stats if not exists
+        if (!userStats[username]) {
+            userStats[username] = { totalCoins: 0, submissions: 0 };
+        }
+
+        // Track coins even in gift count mode
+        userStats[username].totalCoins += coinValue;
+
+        // Add the participant multiple times based on gift count
+        let addedCount = 0;
+        for (let i = 0; i < giftCount; i++) {
+            const success = addParticipant(username);
+            if (success) {
+                addedCount++;
+                userStats[username].submissions++;
+            } else {
+                // Hit max limit, stop adding
+                break;
+            }
+        }
+
+        // Mark this combo as processed
+        const combo = giftCombos.get(comboKey);
+        if (combo && combo.repeatCount === repeatCount) {
+            combo.processed = true;
+            giftCombos.set(comboKey, combo);
+        }
+
+        saveToLocalStorage();
+        updateLeaderboard();
+
+        if (addedCount > 0) {
+            if (giftCount > 1) {
+                logStatus(`🎁 ${username} sent ${giftCount} gifts! Added ${addedCount} entries.`);
+            } else {
+                logStatus(`🎁 ${username} sent a gift!`);
+            }
+        }
+    } else {
+        // Coin-based system is active
+        const totalCoins = coinValue;
+
+        // Initialize user stats and balance if not exists
+        if (!userCoinBalances[username]) {
+            userCoinBalances[username] = 0;
+        }
+        if (!userStats[username]) {
+            userStats[username] = { totalCoins: 0, submissions: 0 };
+        }
+
+        // Add coins to user's balance and total
+        userCoinBalances[username] += totalCoins;
+        userStats[username].totalCoins += totalCoins;
+        saveToLocalStorage();
+        updateLeaderboard();
+
+        logStatus(`💰 ${username} sent ${totalCoins} coins (Balance: ${userCoinBalances[username]})`);
+
+        // Check how many entries they've earned
+        const entriesEarned = Math.floor(userCoinBalances[username] / minCoins);
+
+        if (entriesEarned > 0) {
+            // Add entries and deduct coins
+            let addedCount = 0;
+            for (let i = 0; i < entriesEarned; i++) {
+                const success = addParticipant(username);
+                if (success) {
+                    addedCount++;
+                    userCoinBalances[username] -= minCoins;
+                    userStats[username].submissions++;
+                } else {
+                    // Hit max limit, stop adding
+                    break;
+                }
+            }
+
+            saveToLocalStorage();
+            updateLeaderboard();
+
+            if (addedCount > 0) {
+                logStatus(`✅ ${username} earned ${addedCount} entr${addedCount > 1 ? 'ies' : 'y'}! Remaining: ${userCoinBalances[username]} coins`);
+            }
+        }
+
+        // Mark this combo as processed
+        const combo = giftCombos.get(comboKey);
+        if (combo && combo.repeatCount === repeatCount) {
+            combo.processed = true;
+            giftCombos.set(comboKey, combo);
+        }
+    }
+}
+
 // Handle incoming webhook data from TikFinity
 function handleWebhookData(data) {
     // TikFinity sends gift event data when viewer sends a gift
@@ -495,6 +602,8 @@ function handleWebhookData(data) {
 
         // Check for combo (user sent gift, then combo'd it within 30 seconds)
         const existingCombo = giftCombos.get(comboKey);
+        const hasPendingGift = pendingGifts.has(comboKey);
+
         if (existingCombo && (now - existingCombo.timestamp) < 30000) {
             console.log(`[Combo Check] Found existing: ${existingCombo.repeatCount}x (processed: ${existingCombo.processed}), New: ${repeatCount}x`);
 
@@ -503,14 +612,25 @@ function handleWebhookData(data) {
                 console.log(`✓ Combo detected! Upgrading from ${existingCombo.repeatCount}x to ${repeatCount}x`);
                 logStatus(`🎯 Gift combo: ${data.username} upgraded to ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
 
-                // Update combo tracking with new higher value, mark as ready to process
+                // Cancel pending processing of lower gift
+                if (hasPendingGift) {
+                    const pending = pendingGifts.get(comboKey);
+                    clearTimeout(pending.timeoutId);
+                    pendingGifts.delete(comboKey);
+                    console.log('✓ Cancelled pending lower gift processing');
+                }
+
+                // Update combo tracking with new higher value
                 giftCombos.set(comboKey, {
                     coins: coinValue,
                     repeatCount: repeatCount,
                     timestamp: now,
                     processed: false
                 });
-                // Continue processing this webhook below
+
+                // Process this higher combo immediately
+                processGift(data);
+                return;
             } else if (repeatCount < existingCombo.repeatCount) {
                 // Lower repeatCount - this is out-of-order or already upgraded
                 console.log('✋ Ignoring lower repeatCount (already have higher combo)');
@@ -522,24 +642,49 @@ function handleWebhookData(data) {
                     console.log('✋ Ignoring - already processed this combo');
                     logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${coinValue} coins (x${repeatCount})`);
                     return;
-                } else {
-                    // First time processing this combo value
-                    console.log('✓ Processing combo for first time');
                 }
             }
-        } else {
-            // First time seeing this gift or outside 30s window
-            console.log(`✓ New gift accepted: ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
+        }
+
+        // Store webhook hash to prevent exact duplicates
+        processedWebhooks.set(webhookHash, now);
+
+        // For gifts over 99 coins, delay processing to wait for potential combo
+        if (coinValue > 99) {
+            console.log(`⏳ Delaying processing for ${repeatCount}x gift (${coinValue} coins) - waiting for combo...`);
+
+            // Cancel any existing pending gift for this combo
+            if (hasPendingGift) {
+                const pending = pendingGifts.get(comboKey);
+                clearTimeout(pending.timeoutId);
+            }
+
+            // Track this gift in combo system
             giftCombos.set(comboKey, {
                 coins: coinValue,
                 repeatCount: repeatCount,
                 timestamp: now,
                 processed: false
             });
-        }
 
-        // Store webhook hash to prevent exact duplicates
-        processedWebhooks.set(webhookHash, now);
+            // Schedule processing after 2 second delay
+            const timeoutId = setTimeout(() => {
+                console.log(`✓ Delay complete - processing ${repeatCount}x gift now`);
+                processGift(data);
+                pendingGifts.delete(comboKey);
+            }, 2000);
+
+            pendingGifts.set(comboKey, { data, timeoutId });
+        } else {
+            // Low value gifts - process immediately
+            giftCombos.set(comboKey, {
+                coins: coinValue,
+                repeatCount: repeatCount,
+                timestamp: now,
+                processed: false
+            });
+            processGift(data);
+        }
 
         // Clean up old entries
         for (const [key, timestamp] of processedWebhooks.entries()) {
@@ -547,110 +692,6 @@ function handleWebhookData(data) {
         }
         for (const [key, combo] of giftCombos.entries()) {
             if (now - combo.timestamp > 30000) giftCombos.delete(key);
-        }
-    }
-
-    if (data.event === 'gift' && data.username) {
-        const username = data.username;
-        const coinValue = data.coinValue || 0;
-        const giftCount = data.giftCount || 1;
-        const giftId = data.raw?.giftId || 'unknown';
-        const repeatCount = parseInt(data.raw?.repeatCount || data.giftCount || 1);
-        const comboKey = `${username}-${giftId}`;
-
-        // If minCoins is disabled (0), use old behavior (gift count based)
-        if (minCoins === 0 || minCoins === null) {
-            // Initialize user stats if not exists
-            if (!userStats[username]) {
-                userStats[username] = { totalCoins: 0, submissions: 0 };
-            }
-
-            // Track coins even in gift count mode
-            userStats[username].totalCoins += coinValue;
-
-            // Add the participant multiple times based on gift count
-            let addedCount = 0;
-            for (let i = 0; i < giftCount; i++) {
-                const success = addParticipant(username);
-                if (success) {
-                    addedCount++;
-                    userStats[username].submissions++;
-                } else {
-                    // Hit max limit, stop adding
-                    break;
-                }
-            }
-
-            // Mark this combo as processed
-            const combo = giftCombos.get(comboKey);
-            if (combo && combo.repeatCount === repeatCount) {
-                combo.processed = true;
-                giftCombos.set(comboKey, combo);
-            }
-
-            saveToLocalStorage();
-            updateLeaderboard(); // Update leaderboard after adding entries
-
-            if (addedCount > 0) {
-                if (giftCount > 1) {
-                    logStatus(`🎁 ${username} sent ${giftCount} gifts! Added ${addedCount} entries.`);
-                } else {
-                    logStatus(`🎁 ${username} sent a gift!`);
-                }
-            }
-        } else {
-            // Coin-based system is active
-            // coinValue from server is already the TOTAL (unit price × count), don't multiply again
-            const totalCoins = coinValue;
-
-            // Initialize user stats and balance if not exists
-            if (!userCoinBalances[username]) {
-                userCoinBalances[username] = 0;
-            }
-            if (!userStats[username]) {
-                userStats[username] = { totalCoins: 0, submissions: 0 };
-            }
-
-            // Add coins to user's balance and total
-            userCoinBalances[username] += totalCoins;
-            userStats[username].totalCoins += totalCoins;
-            saveToLocalStorage();
-            updateLeaderboard(); // Update leaderboard immediately when coins are added
-
-            logStatus(`💰 ${username} sent ${totalCoins} coins (Balance: ${userCoinBalances[username]})`);
-
-            // Check how many entries they've earned
-            const entriesEarned = Math.floor(userCoinBalances[username] / minCoins);
-
-            if (entriesEarned > 0) {
-                // Add entries and deduct coins
-                let addedCount = 0;
-                for (let i = 0; i < entriesEarned; i++) {
-                    const success = addParticipant(username);
-                    if (success) {
-                        addedCount++;
-                        userCoinBalances[username] -= minCoins;
-                        userStats[username].submissions++;
-                    } else {
-                        // Hit max limit, stop adding
-                        break;
-                    }
-                }
-
-                saveToLocalStorage();
-                updateLeaderboard();
-
-                if (addedCount > 0) {
-                    logStatus(`✅ ${username} earned ${addedCount} entr${addedCount > 1 ? 'ies' : 'y'}! Remaining: ${userCoinBalances[username]} coins`);
-                }
-            }
-
-            // Mark this combo as processed
-            const combo = giftCombos.get(comboKey);
-            if (combo && combo.repeatCount === repeatCount) {
-                combo.processed = true;
-                giftCombos.set(comboKey, combo);
-            }
         }
     } else if (data.message) {
         // Handle connection messages
