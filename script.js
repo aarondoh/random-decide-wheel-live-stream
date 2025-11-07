@@ -626,10 +626,12 @@ function attachEventListeners() {
     });
 
     document.getElementById('clearCoinBalancesBtn').addEventListener('click', () => {
-        if (confirm('Clear all user coin balances? This will reset everyone to 0 coins.')) {
+        if (confirm('Clear all user coin balances and leaderboard stats? This will reset everyone to 0 coins and submissions.')) {
             userCoinBalances = {};
+            userStats = {};
             saveToLocalStorage();
-            logStatus('All coin balances cleared');
+            updateLeaderboard();
+            logStatus('All coin balances and leaderboard stats cleared');
         }
     });
 
