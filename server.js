@@ -14,8 +14,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // Serve static files (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname)));
 
-// Store connected clients for Server-Sent Events
-let clients = [];
+// Store connected clients for Server-Sent Events by session ID
+// Map of sessionId -> array of client connections
+let sessionClients = new Map();
 
 // Serve the main page
 app.get('/', (req, res) => {
@@ -26,36 +27,57 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
 });
 
-// Server-Sent Events endpoint for browser to listen
-app.get('/events', (req, res) => {
+// Server-Sent Events endpoint for browser to listen (with session ID)
+app.get('/events/:sessionId', (req, res) => {
+    const sessionId = req.params.sessionId;
+
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('Access-Control-Allow-Origin', '*');
 
-    // Add client to list
+    // Add client to session-specific list
     const clientId = Date.now();
     const newClient = {
         id: clientId,
-        res
+        res,
+        sessionId
     };
-    clients.push(newClient);
 
-    console.log(`Client ${clientId} connected. Total clients: ${clients.length}`);
+    // Initialize session array if it doesn't exist
+    if (!sessionClients.has(sessionId)) {
+        sessionClients.set(sessionId, []);
+    }
+
+    sessionClients.get(sessionId).push(newClient);
+
+    const sessionClientCount = sessionClients.get(sessionId).length;
+    const totalSessions = sessionClients.size;
+    console.log(`Client ${clientId} connected to session ${sessionId.substring(0, 8)}... (${sessionClientCount} client(s) in session, ${totalSessions} total sessions)`);
 
     // Send initial connection message
     res.write(`data: ${JSON.stringify({ message: 'Connected to webhook server' })}\n\n`);
 
     // Remove client on disconnect
     req.on('close', () => {
-        clients = clients.filter(client => client.id !== clientId);
-        console.log(`Client ${clientId} disconnected. Total clients: ${clients.length}`);
+        const sessionClientsArray = sessionClients.get(sessionId) || [];
+        const filteredClients = sessionClientsArray.filter(client => client.id !== clientId);
+
+        if (filteredClients.length > 0) {
+            sessionClients.set(sessionId, filteredClients);
+        } else {
+            // No more clients in this session, remove the session
+            sessionClients.delete(sessionId);
+        }
+
+        console.log(`Client ${clientId} disconnected from session ${sessionId.substring(0, 8)}... (${filteredClients.length} remaining in session)`);
     });
 });
 
-// Webhook endpoint for TikFinity
-app.post('/webhook', (req, res) => {
-    console.log('=== TikFinity Webhook Received ===');
+// Webhook endpoint for TikFinity (with session ID)
+app.post('/webhook/:sessionId', (req, res) => {
+    const sessionId = req.params.sessionId;
+    console.log(`=== TikFinity Webhook Received for session ${sessionId.substring(0, 8)}... ===`);
     console.log('Full payload:', JSON.stringify(req.body, null, 2));
     console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
@@ -181,14 +203,15 @@ app.post('/webhook', (req, res) => {
         // TikFinity already sends total coins (not unit price), so don't multiply
         console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}, Coin value: ${formattedData.coinValue}`);
 
-        // Broadcast to all connected clients
-        if (clients.length > 0) {
-            clients.forEach(client => {
+        // Broadcast to session-specific clients only
+        const sessionClientsArray = sessionClients.get(sessionId) || [];
+        if (sessionClientsArray.length > 0) {
+            sessionClientsArray.forEach(client => {
                 client.res.write(`data: ${JSON.stringify(formattedData)}\n\n`);
             });
-            console.log(`Broadcasted to ${clients.length} client(s)`);
+            console.log(`Broadcasted to ${sessionClientsArray.length} client(s) in session ${sessionId.substring(0, 8)}...`);
         } else {
-            console.log('No clients connected to broadcast to');
+            console.log(`No clients connected to session ${sessionId.substring(0, 8)}...`);
         }
 
         res.status(200).json({
@@ -205,14 +228,15 @@ app.post('/webhook', (req, res) => {
 });
 
 // Test endpoint to simulate TikFinity webhook (simulates combo behavior)
-app.post('/test-webhook', (req, res) => {
+app.post('/test-webhook/:sessionId', (req, res) => {
+    const sessionId = req.params.sessionId;
     const finalGiftCount = req.body.giftCount || req.body.count || req.body.repeatCount || 1;
     const unitCoinValue = 1000; // Galaxy default
     const giftId = req.body.giftId || '11046'; // Default to Galaxy
     const giftName = req.body.giftName || 'Galaxy';
     const username = req.body.username || 'TestUser';
 
-    console.log(`\n=== TEST WEBHOOK SIMULATION ===`);
+    console.log(`\n=== TEST WEBHOOK SIMULATION (Session ${sessionId.substring(0, 8)}...) ===`);
     console.log(`Simulating ${finalGiftCount}x ${giftName} from ${username}`);
     console.log(`This will send 3 webhooks to simulate TikTok combo behavior:\n`);
 
@@ -260,7 +284,9 @@ app.post('/test-webhook', (req, res) => {
     console.log(`Expected result: Should count ${finalGiftCount} entries total (not ${1 + finalGiftCount + finalGiftCount})`);
 
     // Send webhooks with delays to simulate real behavior
+    // Get fresh client arrays in each timeout to avoid stale references
     setTimeout(() => {
+        const clients = sessionClients.get(sessionId) || [];
         clients.forEach(client => {
             client.res.write(`data: ${JSON.stringify(webhook1)}\n\n`);
         });
@@ -268,6 +294,7 @@ app.post('/test-webhook', (req, res) => {
     }, 0);
 
     setTimeout(() => {
+        const clients = sessionClients.get(sessionId) || [];
         clients.forEach(client => {
             client.res.write(`data: ${JSON.stringify(webhook2)}\n\n`);
         });
@@ -275,6 +302,7 @@ app.post('/test-webhook', (req, res) => {
     }, 500);
 
     setTimeout(() => {
+        const clients = sessionClients.get(sessionId) || [];
         clients.forEach(client => {
             client.res.write(`data: ${JSON.stringify(webhook3)}\n\n`);
         });
@@ -298,25 +326,24 @@ app.listen(PORT, '0.0.0.0', () => {
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
         : `http://localhost:${PORT}`;
 
-    const webhookUrl = `${deployUrl}/webhook`;
-
     console.log(`
 ╔════════════════════════════════════════════════════════════════╗
 ║  TikFinity Webhook Server for Random Decide Wheel             ║
+║  Multi-Session Support - Each browser gets unique webhook     ║
 ╚════════════════════════════════════════════════════════════════╝
 
 Server running on:
   ${deployUrl}
 
 Endpoints:
-  GET  /               (Web Interface)
-  POST /webhook        (TikFinity webhook)
-  GET  /events         (Browser SSE connection)
-  POST /test-webhook   (Test with custom data)
-  GET  /health         (Health check)
+  GET  /                      (Web Interface)
+  POST /webhook/:sessionId    (TikFinity webhook - session-specific)
+  GET  /events/:sessionId     (Browser SSE connection - session-specific)
+  POST /test-webhook/:sessionId (Test with custom data - session-specific)
+  GET  /health                (Health check)
 
-Configure TikFinity webhook URL:
-  ${webhookUrl}
+Note: Each browser session automatically generates a unique session ID.
+The webhook URL is displayed in the web interface after connecting.
     `);
 });
 

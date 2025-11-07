@@ -10,6 +10,31 @@ let processedWebhooks = new Map(); // Track processed webhooks with timestamps: 
 let giftCombos = new Map(); // Track gift combos: "username-giftId" -> {coins, repeatCount, timestamp, processed}
 let pendingGifts = new Map(); // Track pending gifts waiting for combo: "username-giftId" -> {data, timeoutId}
 let isShowingAllLeaderboard = false; // Track if showing all leaderboard entries
+let sessionId = null; // Unique session ID for this browser
+
+// Generate or retrieve session ID
+function getSessionId() {
+    if (sessionId) return sessionId;
+
+    // Check if session ID exists in localStorage
+    let storedSessionId = localStorage.getItem('wheelSessionId');
+
+    if (!storedSessionId) {
+        // Generate new UUID v4 (industry standard)
+        storedSessionId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+        localStorage.setItem('wheelSessionId', storedSessionId);
+        console.log('Generated new session ID:', storedSessionId);
+    } else {
+        console.log('Using existing session ID:', storedSessionId);
+    }
+
+    sessionId = storedSessionId;
+    return sessionId;
+}
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -174,8 +199,10 @@ function init() {
 // Update webhook URL display
 function updateWebhookUrl() {
     const serverUrl = window.location.origin;
-    const webhookUrl = `${serverUrl}/webhook`;
+    const sid = getSessionId();
+    const webhookUrl = `${serverUrl}/webhook/${sid}`;
     document.getElementById('webhookUrl').textContent = webhookUrl;
+    logStatus(`Session ID: ${sid.substring(0, 8)}...`);
 }
 
 // Copy webhook URL to clipboard
@@ -472,7 +499,8 @@ async function startWebhookServer() {
 function startWebhookListener() {
     // This connects to the webhook server (works with Railway deployment)
     const serverUrl = window.location.origin;
-    const eventSource = new EventSource(`${serverUrl}/events`);
+    const sid = getSessionId();
+    const eventSource = new EventSource(`${serverUrl}/events/${sid}`);
 
     eventSource.onmessage = function(event) {
         try {
@@ -828,9 +856,10 @@ function attachEventListeners() {
     document.getElementById('testMultipleBtn').addEventListener('click', async () => {
         const giftCount = parseInt(document.getElementById('testGiftCount').value) || 10;
         const serverUrl = window.location.origin;
+        const sid = getSessionId();
 
         try {
-            const response = await fetch(`${serverUrl}/test-webhook`, {
+            const response = await fetch(`${serverUrl}/test-webhook/${sid}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
