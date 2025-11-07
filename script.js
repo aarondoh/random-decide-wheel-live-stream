@@ -667,12 +667,12 @@ function handleWebhookData(data) {
                 processed: false
             });
 
-            // Schedule processing after 2 second delay
+            // Schedule processing after 5 second delay (allows time for multiple back-to-back gifts)
             const timeoutId = setTimeout(() => {
                 console.log(`✓ Delay complete - processing ${repeatCount}x gift now`);
                 processGift(data);
                 pendingGifts.delete(comboKey);
-            }, 2000);
+            }, 5000);
 
             pendingGifts.set(comboKey, { data, timeoutId });
         } else {
