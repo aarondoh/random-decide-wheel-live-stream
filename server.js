@@ -74,7 +74,8 @@ app.post('/webhook', (req, res) => {
             timestamp: Date.now()
         };
 
-        // Try to extract coin value from various possible fields
+        // Try to extract coin value (unit price) from various possible fields
+        let unitCoinValue = 0;
         const possibleCoinFields = [
             'diamondCount', 'diamond_count', 'diamonds',
             'coinValue', 'coin_value', 'coins', 'coinCount', 'coin_count',
@@ -85,19 +86,19 @@ app.post('/webhook', (req, res) => {
             if (data[field]) {
                 const coins = typeof data[field] === 'number' ? data[field] : parseInt(data[field], 10);
                 if (!isNaN(coins) && coins > 0) {
-                    formattedData.coinValue = coins;
+                    unitCoinValue = coins;
                     break;
                 }
             }
         }
 
         // Check nested objects for coin value
-        if (formattedData.coinValue === 0 && data.data) {
+        if (unitCoinValue === 0 && data.data) {
             for (const field of possibleCoinFields) {
                 if (data.data[field]) {
                     const coins = typeof data.data[field] === 'number' ? data.data[field] : parseInt(data.data[field], 10);
                     if (!isNaN(coins) && coins > 0) {
-                        formattedData.coinValue = coins;
+                        unitCoinValue = coins;
                         break;
                     }
                 }
@@ -177,7 +178,10 @@ app.post('/webhook', (req, res) => {
             console.log('WARNING: Could not find username in payload, using fallback');
         }
 
-        console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}, Coin value: ${formattedData.coinValue}`);
+        // Calculate total coins (unit price × count)
+        formattedData.coinValue = unitCoinValue * formattedData.giftCount;
+
+        console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}, Unit coin value: ${unitCoinValue}, Total coins: ${formattedData.coinValue}`);
 
         // Broadcast to all connected clients
         if (clients.length > 0) {

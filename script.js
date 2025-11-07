@@ -432,7 +432,8 @@ function handleWebhookData(data) {
             }
         } else {
             // Coin-based system is active
-            const totalCoins = coinValue * giftCount;
+            // coinValue from server is already the TOTAL (unit price × count), don't multiply again
+            const totalCoins = coinValue;
 
             // Initialize user balance if not exists
             if (!userCoinBalances[username]) {
