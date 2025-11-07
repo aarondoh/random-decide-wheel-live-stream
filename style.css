@@ -513,6 +513,29 @@ h3 {
     transform: scale(1.1);
 }
 
+.btn-remove-leaderboard {
+    background: #FF6B6B;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+}
+
+.btn-remove-leaderboard:hover {
+    background: #ee5a52;
+    transform: scale(1.15);
+}
+
 /* Status */
 .status {
     background: white;

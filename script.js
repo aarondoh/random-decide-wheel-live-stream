@@ -9,6 +9,7 @@ let webhookServer = null;
 let processedWebhooks = new Map(); // Track processed webhooks with timestamps: hash -> timestamp
 let giftCombos = new Map(); // Track gift combos: "username-giftId" -> {coins, repeatCount, timestamp, processed}
 let pendingGifts = new Map(); // Track pending gifts waiting for combo: "username-giftId" -> {data, timeoutId}
+let isShowingAllLeaderboard = false; // Track if showing all leaderboard entries
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -71,6 +72,26 @@ function loadFromLocalStorage() {
     }
 }
 
+// Delete user from leaderboard
+function deleteLeaderboardUser(username) {
+    if (confirm(`Delete ${username} from leaderboard? This will remove all their stats and coin balance.`)) {
+        // Remove from userStats
+        delete userStats[username];
+
+        // Remove from userCoinBalances
+        delete userCoinBalances[username];
+
+        // Remove all their entries from participants list
+        participants = participants.filter(p => p !== username);
+
+        saveToLocalStorage();
+        drawWheel();
+        updateParticipantDisplay();
+        updateLeaderboard();
+        logStatus(`Deleted ${username} from leaderboard`);
+    }
+}
+
 // Update leaderboard display
 function updateLeaderboard() {
     const leaderboardList = document.getElementById('leaderboardList');
@@ -81,9 +102,8 @@ function updateLeaderboard() {
         .map(([username, stats]) => ({ username, ...stats }))
         .sort((a, b) => b.totalCoins - a.totalCoins);
 
-    // Show top 10 by default
-    const isShowingAll = showAllBtn && showAllBtn.textContent.includes('Hide');
-    const displayUsers = isShowingAll ? sortedUsers : sortedUsers.slice(0, 10);
+    // Use state variable for showing all
+    const displayUsers = isShowingAllLeaderboard ? sortedUsers : sortedUsers.slice(0, 10);
 
     leaderboardList.innerHTML = '';
 
@@ -111,15 +131,24 @@ function updateLeaderboard() {
                 <span class="leaderboard-coins">💰${user.totalCoins}</span>
                 <span class="leaderboard-submissions">🎫${user.submissions}</span>
             </span>
+            <button class="btn-remove-leaderboard" data-username="${user.username}" title="Delete from leaderboard">×</button>
         `;
         leaderboardList.appendChild(li);
+    });
+
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.btn-remove-leaderboard').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent drag event
+            deleteLeaderboardUser(e.target.dataset.username);
+        });
     });
 
     // Show/hide "Show All" button
     if (showAllBtn) {
         if (sortedUsers.length > 10) {
             showAllBtn.style.display = 'block';
-            showAllBtn.textContent = isShowingAll ? 'Show Top 10' : `Show All (${sortedUsers.length})`;
+            showAllBtn.textContent = isShowingAllLeaderboard ? 'Show Top 10' : `Show All (${sortedUsers.length})`;
         } else {
             showAllBtn.style.display = 'none';
         }
@@ -830,6 +859,7 @@ function attachEventListeners() {
 
     // Show all leaderboard button
     document.getElementById('showAllLeaderboardBtn').addEventListener('click', () => {
+        isShowingAllLeaderboard = !isShowingAllLeaderboard;
         updateLeaderboard();
     });
 }
