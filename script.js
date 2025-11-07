@@ -2,7 +2,8 @@
 let participants = [];
 let maxLimit = 0; // 0 means no limit
 let minCoins = 0; // Minimum coins required for one entry (0 = disabled)
-let userCoinBalances = {}; // Track coins per user: {username: coinAmount}
+let userCoinBalances = {}; // Track remaining coins per user: {username: coinAmount}
+let userStats = {}; // Track stats per user: {username: {totalCoins: X, submissions: Y}}
 let isSpinning = false;
 let webhookServer = null;
 
@@ -27,6 +28,7 @@ function saveToLocalStorage() {
         localStorage.setItem('wheelMaxLimit', maxLimit.toString());
         localStorage.setItem('wheelMinCoins', minCoins.toString());
         localStorage.setItem('wheelUserCoinBalances', JSON.stringify(userCoinBalances));
+        localStorage.setItem('wheelUserStats', JSON.stringify(userStats));
     } catch (error) {
         console.error('Failed to save to localStorage:', error);
     }
@@ -38,6 +40,7 @@ function loadFromLocalStorage() {
         const savedMaxLimit = localStorage.getItem('wheelMaxLimit');
         const savedMinCoins = localStorage.getItem('wheelMinCoins');
         const savedCoinBalances = localStorage.getItem('wheelUserCoinBalances');
+        const savedUserStats = localStorage.getItem('wheelUserStats');
 
         if (savedParticipants) {
             participants = JSON.parse(savedParticipants);
@@ -56,8 +59,67 @@ function loadFromLocalStorage() {
         if (savedCoinBalances) {
             userCoinBalances = JSON.parse(savedCoinBalances);
         }
+
+        if (savedUserStats) {
+            userStats = JSON.parse(savedUserStats);
+        }
     } catch (error) {
         console.error('Failed to load from localStorage:', error);
+    }
+}
+
+// Update leaderboard display
+function updateLeaderboard() {
+    const leaderboardList = document.getElementById('leaderboardList');
+    const showAllBtn = document.getElementById('showAllLeaderboardBtn');
+
+    // Convert userStats to array and sort by totalCoins descending
+    const sortedUsers = Object.entries(userStats)
+        .map(([username, stats]) => ({ username, ...stats }))
+        .sort((a, b) => b.totalCoins - a.totalCoins);
+
+    // Show top 10 by default
+    const isShowingAll = showAllBtn && showAllBtn.textContent.includes('Hide');
+    const displayUsers = isShowingAll ? sortedUsers : sortedUsers.slice(0, 10);
+
+    leaderboardList.innerHTML = '';
+
+    if (displayUsers.length === 0) {
+        leaderboardList.innerHTML = '<li class="leaderboard-empty">No data yet...</li>';
+        if (showAllBtn) showAllBtn.style.display = 'none';
+        return;
+    }
+
+    displayUsers.forEach((user, index) => {
+        const rank = sortedUsers.findIndex(u => u.username === user.username) + 1;
+        const li = document.createElement('li');
+        li.className = 'leaderboard-item';
+
+        // Add medal for top 3
+        let medal = '';
+        if (rank === 1) medal = '🥇';
+        else if (rank === 2) medal = '🥈';
+        else if (rank === 3) medal = '🥉';
+
+        li.innerHTML = `
+            <span class="leaderboard-rank">${medal || `#${rank}`}</span>
+            <span class="leaderboard-username">${user.username}</span>
+            <span class="leaderboard-stats">
+                <span class="leaderboard-coins">💰${user.totalCoins}</span>
+                <span class="leaderboard-submissions">🎫${user.submissions}</span>
+            </span>
+        `;
+        leaderboardList.appendChild(li);
+    });
+
+    // Show/hide "Show All" button
+    if (showAllBtn) {
+        if (sortedUsers.length > 10) {
+            showAllBtn.style.display = 'block';
+            showAllBtn.textContent = isShowingAll ? 'Show Top 10' : `Show All (${sortedUsers.length})`;
+        } else {
+            showAllBtn.style.display = 'none';
+        }
     }
 }
 
@@ -66,6 +128,7 @@ function init() {
     loadFromLocalStorage();
     drawWheel();
     updateParticipantDisplay();
+    updateLeaderboard();
     attachEventListeners();
     updateWebhookUrl();
 
@@ -435,13 +498,17 @@ function handleWebhookData(data) {
             // coinValue from server is already the TOTAL (unit price × count), don't multiply again
             const totalCoins = coinValue;
 
-            // Initialize user balance if not exists
+            // Initialize user stats and balance if not exists
             if (!userCoinBalances[username]) {
                 userCoinBalances[username] = 0;
             }
+            if (!userStats[username]) {
+                userStats[username] = { totalCoins: 0, submissions: 0 };
+            }
 
-            // Add coins to user's balance
+            // Add coins to user's balance and total
             userCoinBalances[username] += totalCoins;
+            userStats[username].totalCoins += totalCoins;
             saveToLocalStorage();
 
             logStatus(`💰 ${username} sent ${totalCoins} coins (Balance: ${userCoinBalances[username]})`);
@@ -457,6 +524,7 @@ function handleWebhookData(data) {
                     if (success) {
                         addedCount++;
                         userCoinBalances[username] -= minCoins;
+                        userStats[username].submissions++;
                     } else {
                         // Hit max limit, stop adding
                         break;
@@ -464,6 +532,7 @@ function handleWebhookData(data) {
                 }
 
                 saveToLocalStorage();
+                updateLeaderboard();
 
                 if (addedCount > 0) {
                     logStatus(`✅ ${username} earned ${addedCount} entr${addedCount > 1 ? 'ies' : 'y'}! Remaining: ${userCoinBalances[username]} coins`);
@@ -551,6 +620,11 @@ function attachEventListeners() {
     // Clear debug log button
     document.getElementById('clearDebugBtn').addEventListener('click', () => {
         document.getElementById('webhookDebug').innerHTML = 'Debug log cleared. Waiting for next webhook...';
+    });
+
+    // Show all leaderboard button
+    document.getElementById('showAllLeaderboardBtn').addEventListener('click', () => {
+        updateLeaderboard();
     });
 }
 
