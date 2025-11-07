@@ -1,6 +1,8 @@
 // Wheel state
 let participants = [];
 let maxLimit = 0; // 0 means no limit
+let minCoins = 0; // Minimum coins required for one entry (0 = disabled)
+let userCoinBalances = {}; // Track coins per user: {username: coinAmount}
 let isSpinning = false;
 let webhookServer = null;
 
@@ -23,6 +25,8 @@ function saveToLocalStorage() {
     try {
         localStorage.setItem('wheelParticipants', JSON.stringify(participants));
         localStorage.setItem('wheelMaxLimit', maxLimit.toString());
+        localStorage.setItem('wheelMinCoins', minCoins.toString());
+        localStorage.setItem('wheelUserCoinBalances', JSON.stringify(userCoinBalances));
     } catch (error) {
         console.error('Failed to save to localStorage:', error);
     }
@@ -32,6 +36,8 @@ function loadFromLocalStorage() {
     try {
         const savedParticipants = localStorage.getItem('wheelParticipants');
         const savedMaxLimit = localStorage.getItem('wheelMaxLimit');
+        const savedMinCoins = localStorage.getItem('wheelMinCoins');
+        const savedCoinBalances = localStorage.getItem('wheelUserCoinBalances');
 
         if (savedParticipants) {
             participants = JSON.parse(savedParticipants);
@@ -40,6 +46,15 @@ function loadFromLocalStorage() {
         if (savedMaxLimit) {
             maxLimit = parseInt(savedMaxLimit, 10) || 0;
             document.getElementById('maxLimit').value = maxLimit > 0 ? maxLimit : '';
+        }
+
+        if (savedMinCoins) {
+            minCoins = parseInt(savedMinCoins, 10) || 0;
+            document.getElementById('minCoins').value = minCoins > 0 ? minCoins : '';
+        }
+
+        if (savedCoinBalances) {
+            userCoinBalances = JSON.parse(savedCoinBalances);
         }
     } catch (error) {
         console.error('Failed to load from localStorage:', error);
@@ -384,32 +399,74 @@ function startWebhookListener() {
 // Handle incoming webhook data from TikFinity
 function handleWebhookData(data) {
     // TikFinity sends gift event data when viewer sends a gift
-    // Format: { event: 'gift', username: 'user123', giftCount: 15, raw: {...}, timestamp: ... }
+    // Format: { event: 'gift', username: 'user123', giftCount: 15, coinValue: 1000, raw: {...}, timestamp: ... }
 
     // Display the raw webhook data in debug section
     updateWebhookDebug(data);
 
     if (data.event === 'gift' && data.username) {
         const username = data.username;
+        const coinValue = data.coinValue || 0;
         const giftCount = data.giftCount || 1;
 
-        // Add the participant multiple times based on gift count
-        let addedCount = 0;
-        for (let i = 0; i < giftCount; i++) {
-            const success = addParticipant(username);
-            if (success) {
-                addedCount++;
-            } else {
-                // Hit max limit, stop adding
-                break;
+        // If minCoins is disabled (0), use old behavior (gift count based)
+        if (minCoins === 0 || minCoins === null) {
+            // Add the participant multiple times based on gift count
+            let addedCount = 0;
+            for (let i = 0; i < giftCount; i++) {
+                const success = addParticipant(username);
+                if (success) {
+                    addedCount++;
+                } else {
+                    // Hit max limit, stop adding
+                    break;
+                }
             }
-        }
 
-        if (addedCount > 0) {
-            if (giftCount > 1) {
-                logStatus(`🎁 ${username} sent ${giftCount} gifts! Added ${addedCount} entries.`);
-            } else {
-                logStatus(`🎁 ${username} sent a gift!`);
+            if (addedCount > 0) {
+                if (giftCount > 1) {
+                    logStatus(`🎁 ${username} sent ${giftCount} gifts! Added ${addedCount} entries.`);
+                } else {
+                    logStatus(`🎁 ${username} sent a gift!`);
+                }
+            }
+        } else {
+            // Coin-based system is active
+            const totalCoins = coinValue * giftCount;
+
+            // Initialize user balance if not exists
+            if (!userCoinBalances[username]) {
+                userCoinBalances[username] = 0;
+            }
+
+            // Add coins to user's balance
+            userCoinBalances[username] += totalCoins;
+            saveToLocalStorage();
+
+            logStatus(`💰 ${username} sent ${totalCoins} coins (Balance: ${userCoinBalances[username]})`);
+
+            // Check how many entries they've earned
+            const entriesEarned = Math.floor(userCoinBalances[username] / minCoins);
+
+            if (entriesEarned > 0) {
+                // Add entries and deduct coins
+                let addedCount = 0;
+                for (let i = 0; i < entriesEarned; i++) {
+                    const success = addParticipant(username);
+                    if (success) {
+                        addedCount++;
+                        userCoinBalances[username] -= minCoins;
+                    } else {
+                        // Hit max limit, stop adding
+                        break;
+                    }
+                }
+
+                saveToLocalStorage();
+
+                if (addedCount > 0) {
+                    logStatus(`✅ ${username} earned ${addedCount} entr${addedCount > 1 ? 'ies' : 'y'}! Remaining: ${userCoinBalances[username]} coins`);
+                }
             }
         }
     } else if (data.message) {
@@ -428,7 +485,8 @@ function updateWebhookDebug(data) {
 
     debugEl.innerHTML = `<strong>[${timestamp}] Latest Webhook:</strong>\n${formattedData}\n\n<strong>Extracted Values:</strong>\n` +
         `- Username: ${data.username || 'NOT FOUND'}\n` +
-        `- Gift Count: ${data.giftCount || 'NOT FOUND (defaulting to 1)'}\n\n` +
+        `- Gift Count: ${data.giftCount || 'NOT FOUND (defaulting to 1)'}\n` +
+        `- Coin Value: ${data.coinValue || 'NOT FOUND (defaulting to 0)'}\n\n` +
         `<strong>Raw Payload (from TikFinity):</strong>\n${JSON.stringify(data.raw, null, 2)}`;
 }
 
@@ -463,6 +521,25 @@ function attachEventListeners() {
         saveToLocalStorage();
         updateParticipantDisplay();
         logStatus(`Max limit set to: ${maxLimit || 'No Limit'}`);
+    });
+
+    document.getElementById('setMinCoinsBtn').addEventListener('click', () => {
+        const value = parseInt(document.getElementById('minCoins').value) || 0;
+        minCoins = Math.max(0, value);
+        saveToLocalStorage();
+        if (minCoins > 0) {
+            logStatus(`Min coins per entry set to: ${minCoins} (Coin tracking enabled)`);
+        } else {
+            logStatus(`Min coins disabled - using gift count mode`);
+        }
+    });
+
+    document.getElementById('clearCoinBalancesBtn').addEventListener('click', () => {
+        if (confirm('Clear all user coin balances? This will reset everyone to 0 coins.')) {
+            userCoinBalances = {};
+            saveToLocalStorage();
+            logStatus('All coin balances cleared');
+        }
     });
 
     document.getElementById('startWebhookBtn').addEventListener('click', startWebhookServer);

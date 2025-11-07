@@ -69,9 +69,40 @@ app.post('/webhook', (req, res) => {
             event: 'gift',
             username: null,
             giftCount: 1,
+            coinValue: 0,
             raw: data,
             timestamp: Date.now()
         };
+
+        // Try to extract coin value from various possible fields
+        const possibleCoinFields = [
+            'diamondCount', 'diamond_count', 'diamonds',
+            'coinValue', 'coin_value', 'coins', 'coinCount', 'coin_count',
+            'value', 'price', 'cost'
+        ];
+
+        for (const field of possibleCoinFields) {
+            if (data[field]) {
+                const coins = typeof data[field] === 'number' ? data[field] : parseInt(data[field], 10);
+                if (!isNaN(coins) && coins > 0) {
+                    formattedData.coinValue = coins;
+                    break;
+                }
+            }
+        }
+
+        // Check nested objects for coin value
+        if (formattedData.coinValue === 0 && data.data) {
+            for (const field of possibleCoinFields) {
+                if (data.data[field]) {
+                    const coins = typeof data.data[field] === 'number' ? data.data[field] : parseInt(data.data[field], 10);
+                    if (!isNaN(coins) && coins > 0) {
+                        formattedData.coinValue = coins;
+                        break;
+                    }
+                }
+            }
+        }
 
         // Try to extract gift count/quantity from various possible fields
         const possibleCountFields = [
@@ -146,7 +177,7 @@ app.post('/webhook', (req, res) => {
             console.log('WARNING: Could not find username in payload, using fallback');
         }
 
-        console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}`);
+        console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}, Coin value: ${formattedData.coinValue}`);
 
         // Broadcast to all connected clients
         if (clients.length > 0) {
@@ -162,7 +193,8 @@ app.post('/webhook', (req, res) => {
             success: true,
             message: 'Webhook received',
             username: formattedData.username,
-            giftCount: formattedData.giftCount
+            giftCount: formattedData.giftCount,
+            coinValue: formattedData.coinValue
         });
     } catch (error) {
         console.error('Error processing webhook:', error);
@@ -176,6 +208,7 @@ app.post('/test-webhook', (req, res) => {
         event: 'gift',
         username: req.body.username || 'TestUser',
         giftCount: req.body.giftCount || req.body.count || 1,
+        coinValue: req.body.coinValue || req.body.coins || 0,
         timestamp: Date.now()
     };
 
