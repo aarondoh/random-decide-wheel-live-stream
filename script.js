@@ -496,25 +496,36 @@ function handleWebhookData(data) {
         // Check for combo (user sent gift, then combo'd it within 30 seconds)
         const existingCombo = giftCombos.get(comboKey);
         if (existingCombo && (now - existingCombo.timestamp) < 30000) {
-            console.log(`[Combo Check] Found existing: ${existingCombo.repeatCount}x, New: ${repeatCount}x`);
+            console.log(`[Combo Check] Found existing: ${existingCombo.repeatCount}x (processed: ${existingCombo.processed}), New: ${repeatCount}x`);
 
-            // If new repeatCount is HIGHER, this is a combo - ignore the earlier gift
-            if (repeatCount > existingCombo.repeatCount && !existingCombo.processed) {
+            // If new repeatCount is HIGHER, this is a combo
+            if (repeatCount > existingCombo.repeatCount) {
                 console.log(`✓ Combo detected! Upgrading from ${existingCombo.repeatCount}x to ${repeatCount}x`);
                 logStatus(`🎯 Gift combo: ${data.username} upgraded to ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
 
-                // Update combo tracking with new higher value
+                // Update combo tracking with new higher value, mark as ready to process
                 giftCombos.set(comboKey, {
                     coins: coinValue,
                     repeatCount: repeatCount,
                     timestamp: now,
                     processed: false
                 });
-            } else if (repeatCount <= existingCombo.repeatCount) {
-                // Lower or equal repeatCount - this is a duplicate/out-of-order webhook
-                console.log('✋ Ignoring lower/equal repeatCount (already processed higher combo)');
+                // Continue processing this webhook below
+            } else if (repeatCount < existingCombo.repeatCount) {
+                // Lower repeatCount - this is out-of-order or already upgraded
+                console.log('✋ Ignoring lower repeatCount (already have higher combo)');
                 logStatus(`⚠️ Ignored: ${data.username} - lower combo value`);
                 return;
+            } else if (repeatCount === existingCombo.repeatCount) {
+                // Same repeatCount - check if already processed
+                if (existingCombo.processed) {
+                    console.log('✋ Ignoring - already processed this combo');
+                    logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${coinValue} coins (x${repeatCount})`);
+                    return;
+                } else {
+                    // First time processing this combo value
+                    console.log('✓ Processing combo for first time');
+                }
             }
         } else {
             // First time seeing this gift or outside 30s window
@@ -543,6 +554,9 @@ function handleWebhookData(data) {
         const username = data.username;
         const coinValue = data.coinValue || 0;
         const giftCount = data.giftCount || 1;
+        const giftId = data.raw?.giftId || 'unknown';
+        const repeatCount = parseInt(data.raw?.repeatCount || data.giftCount || 1);
+        const comboKey = `${username}-${giftId}`;
 
         // If minCoins is disabled (0), use old behavior (gift count based)
         if (minCoins === 0 || minCoins === null) {
@@ -565,6 +579,13 @@ function handleWebhookData(data) {
                     // Hit max limit, stop adding
                     break;
                 }
+            }
+
+            // Mark this combo as processed
+            const combo = giftCombos.get(comboKey);
+            if (combo && combo.repeatCount === repeatCount) {
+                combo.processed = true;
+                giftCombos.set(comboKey, combo);
             }
 
             saveToLocalStorage();
@@ -622,6 +643,13 @@ function handleWebhookData(data) {
                 if (addedCount > 0) {
                     logStatus(`✅ ${username} earned ${addedCount} entr${addedCount > 1 ? 'ies' : 'y'}! Remaining: ${userCoinBalances[username]} coins`);
                 }
+            }
+
+            // Mark this combo as processed
+            const combo = giftCombos.get(comboKey);
+            if (combo && combo.repeatCount === repeatCount) {
+                combo.processed = true;
+                giftCombos.set(comboKey, combo);
             }
         }
     } else if (data.message) {
