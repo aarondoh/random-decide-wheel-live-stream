@@ -328,6 +328,9 @@ function handleWebhookData(data) {
     // TikFinity sends gift event data when viewer sends a gift
     // Format: { event: 'gift', username: 'user123', giftCount: 15, raw: {...}, timestamp: ... }
 
+    // Display the raw webhook data in debug section
+    updateWebhookDebug(data);
+
     if (data.event === 'gift' && data.username) {
         const username = data.username;
         const giftCount = data.giftCount || 1;
@@ -355,6 +358,20 @@ function handleWebhookData(data) {
         // Handle connection messages
         logStatus(data.message);
     }
+}
+
+// Update webhook debug display
+function updateWebhookDebug(data) {
+    const debugEl = document.getElementById('webhookDebug');
+    const timestamp = new Date().toLocaleTimeString();
+
+    // Format the data nicely
+    const formattedData = JSON.stringify(data, null, 2);
+
+    debugEl.innerHTML = `<strong>[${timestamp}] Latest Webhook:</strong>\n${formattedData}\n\n<strong>Extracted Values:</strong>\n` +
+        `- Username: ${data.username || 'NOT FOUND'}\n` +
+        `- Gift Count: ${data.giftCount || 'NOT FOUND (defaulting to 1)'}\n\n` +
+        `<strong>Raw Payload (from TikFinity):</strong>\n${JSON.stringify(data.raw, null, 2)}`;
 }
 
 // Event listeners
@@ -393,6 +410,11 @@ function attachEventListeners() {
 
     // Copy button for webhook URL
     document.getElementById('copyUrlBtn').addEventListener('click', copyWebhookUrl);
+
+    // Clear debug log button
+    document.getElementById('clearDebugBtn').addEventListener('click', () => {
+        document.getElementById('webhookDebug').innerHTML = 'Debug log cleared. Waiting for next webhook...';
+    });
 }
 
 // Start the application
