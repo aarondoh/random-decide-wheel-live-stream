@@ -607,17 +607,17 @@ function handleWebhookData(data) {
         if (existingCombo && (now - existingCombo.timestamp) < 30000) {
             console.log(`[Combo Check] Found existing: ${existingCombo.repeatCount}x (processed: ${existingCombo.processed}), New: ${repeatCount}x`);
 
-            // If new repeatCount is HIGHER, this is a combo
+            // If new repeatCount is HIGHER, this is a combo upgrade
             if (repeatCount > existingCombo.repeatCount) {
-                console.log(`✓ Combo detected! Upgrading from ${existingCombo.repeatCount}x to ${repeatCount}x`);
+                console.log(`✓ Combo upgrade detected! ${existingCombo.repeatCount}x → ${repeatCount}x`);
                 logStatus(`🎯 Gift combo: ${data.username} upgraded to ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
 
-                // Cancel pending processing of lower gift
+                // Cancel pending processing - we'll wait for the next upgrade or timeout
                 if (hasPendingGift) {
                     const pending = pendingGifts.get(comboKey);
                     clearTimeout(pending.timeoutId);
                     pendingGifts.delete(comboKey);
-                    console.log('✓ Cancelled pending lower gift processing');
+                    console.log('✓ Cancelled pending - waiting for more upgrades');
                 }
 
                 // Update combo tracking with new higher value
@@ -628,9 +628,7 @@ function handleWebhookData(data) {
                     processed: false
                 });
 
-                // Process this higher combo immediately
-                processGift(data);
-                return;
+                // DO NOT process immediately - continue to delay logic below
             } else if (repeatCount < existingCombo.repeatCount) {
                 // Lower repeatCount - this is out-of-order or already upgraded
                 console.log('✋ Ignoring lower repeatCount (already have higher combo)');
@@ -640,6 +638,11 @@ function handleWebhookData(data) {
                 // Same repeatCount - check if already processed
                 if (existingCombo.processed) {
                     console.log('✋ Ignoring - already processed this combo');
+                    logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${coinValue} coins (x${repeatCount})`);
+                    return;
+                } else {
+                    // Same value but not processed - this is the duplicate at the end
+                    console.log('✋ Duplicate final webhook - ignoring');
                     logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${coinValue} coins (x${repeatCount})`);
                     return;
                 }
