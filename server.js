@@ -204,47 +204,92 @@ app.post('/webhook', (req, res) => {
     }
 });
 
-// Test endpoint to simulate TikFinity webhook
+// Test endpoint to simulate TikFinity webhook (simulates combo behavior)
 app.post('/test-webhook', (req, res) => {
-    const giftCount = req.body.giftCount || req.body.count || req.body.repeatCount || 1;
-    const coinValue = req.body.coinValue || req.body.coins || 0;
+    const finalGiftCount = req.body.giftCount || req.body.count || req.body.repeatCount || 1;
+    const unitCoinValue = 1000; // Galaxy default
     const giftId = req.body.giftId || '11046'; // Default to Galaxy
     const giftName = req.body.giftName || 'Galaxy';
+    const username = req.body.username || 'TestUser';
 
-    const testData = {
-        event: 'gift',
-        username: req.body.username || 'TestUser',
-        giftCount: giftCount,
-        coinValue: coinValue,
-        raw: {
-            value1: req.body.username || 'TestUser',
-            value2: '',
-            value3: giftId,
-            content: 'Add to Wheel',
-            avatar_url: 'https://example.com/avatar.jpg',
-            userId: '1234567890',
-            username: req.body.username || 'TestUser',
-            nickname: req.body.username || 'TestUser',
-            commandParams: '',
-            giftId: giftId,
-            giftName: giftName,
-            coins: coinValue.toString(),
-            repeatCount: giftCount.toString(),
-            triggerTypeId: '3',
-            tikfinityUserId: '1409195',
-            tikfinityUsername: 'aarondoh'
-        },
-        timestamp: Date.now()
-    };
+    console.log(`\n=== TEST WEBHOOK SIMULATION ===`);
+    console.log(`Simulating ${finalGiftCount}x ${giftName} from ${username}`);
+    console.log(`This will send 3 webhooks to simulate TikTok combo behavior:\n`);
 
-    console.log('Test webhook triggered:', testData);
+    // Helper function to create webhook data
+    function createWebhookData(repeatCount, delayMs = 0) {
+        return {
+            event: 'gift',
+            username: username,
+            giftCount: repeatCount,
+            coinValue: unitCoinValue * repeatCount,
+            raw: {
+                value1: username,
+                value2: '',
+                value3: giftId,
+                content: 'Add to Wheel',
+                avatar_url: 'https://example.com/avatar.jpg',
+                userId: '1234567890',
+                username: username,
+                nickname: username,
+                commandParams: '',
+                giftId: giftId,
+                giftName: giftName,
+                coins: (unitCoinValue * repeatCount).toString(),
+                repeatCount: repeatCount.toString(),
+                triggerTypeId: '3',
+                tikfinityUserId: '1409195',
+                tikfinityUsername: 'aarondoh'
+            },
+            timestamp: Date.now() + delayMs
+        };
+    }
 
-    // Broadcast to clients
-    clients.forEach(client => {
-        client.res.write(`data: ${JSON.stringify(testData)}\n\n`);
+    // Simulate the 3-webhook pattern TikTok sends for combos:
+    // Webhook 1: Initial gift (1x)
+    const webhook1 = createWebhookData(1, 0);
+    console.log(`Webhook #1: 1x ${giftName} (${unitCoinValue} coins) - Initial gift`);
+
+    // Webhook 2: Combo'd gift (final count)
+    const webhook2 = createWebhookData(finalGiftCount, 500);
+    console.log(`Webhook #2: ${finalGiftCount}x ${giftName} (${unitCoinValue * finalGiftCount} coins) - Combo upgrade`);
+
+    // Webhook 3: Duplicate of combo (same as webhook 2)
+    const webhook3 = createWebhookData(finalGiftCount, 1000);
+    console.log(`Webhook #3: ${finalGiftCount}x ${giftName} (${unitCoinValue * finalGiftCount} coins) - Duplicate\n`);
+    console.log(`Expected result: Should count ${finalGiftCount} entries total (not ${1 + finalGiftCount + finalGiftCount})`);
+
+    // Send webhooks with delays to simulate real behavior
+    setTimeout(() => {
+        clients.forEach(client => {
+            client.res.write(`data: ${JSON.stringify(webhook1)}\n\n`);
+        });
+        console.log('✓ Sent webhook #1');
+    }, 0);
+
+    setTimeout(() => {
+        clients.forEach(client => {
+            client.res.write(`data: ${JSON.stringify(webhook2)}\n\n`);
+        });
+        console.log('✓ Sent webhook #2');
+    }, 500);
+
+    setTimeout(() => {
+        clients.forEach(client => {
+            client.res.write(`data: ${JSON.stringify(webhook3)}\n\n`);
+        });
+        console.log('✓ Sent webhook #3');
+    }, 1000);
+
+    res.json({
+        success: true,
+        message: `Test combo simulation started: ${finalGiftCount}x ${giftName}`,
+        webhooks: [
+            { order: 1, repeatCount: 1, coins: unitCoinValue },
+            { order: 2, repeatCount: finalGiftCount, coins: unitCoinValue * finalGiftCount },
+            { order: 3, repeatCount: finalGiftCount, coins: unitCoinValue * finalGiftCount }
+        ]
     });
-
-    res.json({ success: true, message: 'Test webhook sent', data: testData });
 });
 
 // Start server

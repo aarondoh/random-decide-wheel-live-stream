@@ -719,7 +719,7 @@ function attachEventListeners() {
 
     document.getElementById('startWebhookBtn').addEventListener('click', startWebhookServer);
 
-    // Test multiple gifts button
+    // Test combo simulation button
     document.getElementById('testMultipleBtn').addEventListener('click', async () => {
         const giftCount = parseInt(document.getElementById('testGiftCount').value) || 10;
         const serverUrl = window.location.origin;
@@ -731,14 +731,13 @@ function attachEventListeners() {
                 body: JSON.stringify({
                     username: 'TestUser',
                     giftCount: giftCount,
-                    coinValue: giftCount * 1000, // Galaxy costs 1000 coins each
                     giftId: '11046',
                     giftName: 'Galaxy'
                 })
             });
 
             const result = await response.json();
-            logStatus(`Test sent: ${giftCount} Galaxies (${giftCount * 1000} coins)`);
+            logStatus(`🧪 Test: Simulating ${giftCount}x Galaxy combo (3 webhooks: 1x → ${giftCount}x → ${giftCount}x duplicate)`);
         } catch (error) {
             logStatus(`ERROR: Test failed - ${error.message}`);
         }
