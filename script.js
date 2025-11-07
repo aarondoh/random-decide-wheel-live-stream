@@ -482,17 +482,29 @@ function handleWebhookData(data) {
 
         // If minCoins is disabled (0), use old behavior (gift count based)
         if (minCoins === 0 || minCoins === null) {
+            // Initialize user stats if not exists
+            if (!userStats[username]) {
+                userStats[username] = { totalCoins: 0, submissions: 0 };
+            }
+
+            // Track coins even in gift count mode
+            userStats[username].totalCoins += coinValue;
+
             // Add the participant multiple times based on gift count
             let addedCount = 0;
             for (let i = 0; i < giftCount; i++) {
                 const success = addParticipant(username);
                 if (success) {
                     addedCount++;
+                    userStats[username].submissions++;
                 } else {
                     // Hit max limit, stop adding
                     break;
                 }
             }
+
+            saveToLocalStorage();
+            updateLeaderboard(); // Update leaderboard after adding entries
 
             if (addedCount > 0) {
                 if (giftCount > 1) {
@@ -518,6 +530,7 @@ function handleWebhookData(data) {
             userCoinBalances[username] += totalCoins;
             userStats[username].totalCoins += totalCoins;
             saveToLocalStorage();
+            updateLeaderboard(); // Update leaderboard immediately when coins are added
 
             logStatus(`💰 ${username} sent ${totalCoins} coins (Balance: ${userCoinBalances[username]})`);
 
