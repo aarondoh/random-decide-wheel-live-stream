@@ -81,18 +81,24 @@ app.post('/webhook', (req, res) => {
         ];
 
         for (const field of possibleCountFields) {
-            if (data[field] && typeof data[field] === 'number' && data[field] > 0) {
-                formattedData.giftCount = data[field];
-                break;
+            if (data[field]) {
+                const count = typeof data[field] === 'number' ? data[field] : parseInt(data[field], 10);
+                if (!isNaN(count) && count > 0) {
+                    formattedData.giftCount = count;
+                    break;
+                }
             }
         }
 
         // Check nested objects for count
         if (formattedData.giftCount === 1 && data.data) {
             for (const field of possibleCountFields) {
-                if (data.data[field] && typeof data.data[field] === 'number' && data.data[field] > 0) {
-                    formattedData.giftCount = data.data[field];
-                    break;
+                if (data.data[field]) {
+                    const count = typeof data.data[field] === 'number' ? data.data[field] : parseInt(data.data[field], 10);
+                    if (!isNaN(count) && count > 0) {
+                        formattedData.giftCount = count;
+                        break;
+                    }
                 }
             }
         }
