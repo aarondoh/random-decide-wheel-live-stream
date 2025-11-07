@@ -6,6 +6,7 @@ let userCoinBalances = {}; // Track remaining coins per user: {username: coinAmo
 let userStats = {}; // Track stats per user: {username: {totalCoins: X, submissions: Y}}
 let isSpinning = false;
 let webhookServer = null;
+let lastWebhookTimestamp = 0; // Track last webhook to prevent duplicates
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -466,6 +467,13 @@ function handleWebhookData(data) {
 
     // Display the raw webhook data in debug section
     updateWebhookDebug(data);
+
+    // Prevent duplicate processing - ignore if same timestamp within 100ms
+    if (data.timestamp && Math.abs(data.timestamp - lastWebhookTimestamp) < 100) {
+        console.log('Duplicate webhook detected, ignoring...');
+        return;
+    }
+    lastWebhookTimestamp = data.timestamp || Date.now();
 
     if (data.event === 'gift' && data.username) {
         const username = data.username;
