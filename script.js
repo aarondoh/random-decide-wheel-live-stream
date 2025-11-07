@@ -615,7 +615,9 @@ function handleWebhookData(data) {
                 // Cancel pending processing - we'll wait for the next upgrade or timeout
                 if (hasPendingGift) {
                     const pending = pendingGifts.get(comboKey);
-                    clearTimeout(pending.timeoutId);
+                    if (pending && pending.timeoutId) {
+                        clearTimeout(pending.timeoutId);
+                    }
                     pendingGifts.delete(comboKey);
                     console.log('✓ Cancelled pending - waiting for more upgrades');
                 }
@@ -659,7 +661,9 @@ function handleWebhookData(data) {
             // Cancel any existing pending gift for this combo
             if (hasPendingGift) {
                 const pending = pendingGifts.get(comboKey);
-                clearTimeout(pending.timeoutId);
+                if (pending && pending.timeoutId) {
+                    clearTimeout(pending.timeoutId);
+                }
             }
 
             // Track this gift in combo system
