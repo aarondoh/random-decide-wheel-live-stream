@@ -53,15 +53,15 @@ h3 {
 
 .wheel-pointer {
     position: absolute;
-    top: -15px;
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
     width: 0;
     height: 0;
-    border-left: 20px solid transparent;
-    border-right: 20px solid transparent;
-    border-top: 40px solid #ff0000;
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+    border-left: 30px solid transparent;
+    border-right: 30px solid transparent;
+    border-top: 60px solid #ff0000;
+    filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.4));
     z-index: 10;
 }
 
@@ -430,7 +430,7 @@ h3 {
     #wheelCanvas {
         width: 100%;
         height: auto;
-        max-width: 400px;
+        max-width: 500px;
     }
 
     .instruction-step {

@@ -9,7 +9,7 @@ const canvas = document.getElementById('wheelCanvas');
 const ctx = canvas.getContext('2d');
 const centerX = canvas.width / 2;
 const centerY = canvas.height / 2;
-const radius = 200;
+const radius = 320; // Increased from 200 to match larger canvas
 
 // Color palette for wheel segments
 const colors = [
@@ -72,7 +72,7 @@ function drawWheel() {
         ctx.stroke();
 
         ctx.fillStyle = '#666';
-        ctx.font = '20px Arial';
+        ctx.font = '24px Arial';
         ctx.textAlign = 'center';
         ctx.fillText('Add participants', centerX, centerY);
         return;
@@ -101,21 +101,21 @@ function drawWheel() {
         ctx.rotate(startAngle + sliceAngle / 2);
         ctx.textAlign = 'center';
         ctx.fillStyle = '#000';
-        ctx.font = 'bold 14px Arial';
+        ctx.font = 'bold 18px Arial';
 
         // Truncate long names
         let displayName = participant;
-        if (displayName.length > 12) {
-            displayName = displayName.substring(0, 12) + '...';
+        if (displayName.length > 15) {
+            displayName = displayName.substring(0, 15) + '...';
         }
 
-        ctx.fillText(displayName, radius / 2, 5);
+        ctx.fillText(displayName, radius / 1.8, 5);
         ctx.restore();
     });
 
     // Draw center circle
     ctx.beginPath();
-    ctx.arc(centerX, centerY, 20, 0, 2 * Math.PI);
+    ctx.arc(centerX, centerY, 30, 0, 2 * Math.PI);
     ctx.fillStyle = '#333';
     ctx.fill();
 }
@@ -138,13 +138,19 @@ function spinWheel() {
 
     logStatus(`Spinning... (${participants.length} participants, ${(100 / participants.length).toFixed(2)}% chance each)`);
 
-    // Calculate rotation
+    // Calculate rotation to land on winner
     const sliceAngle = (2 * Math.PI) / participants.length;
-    const winnerAngle = winnerIndex * sliceAngle + sliceAngle / 2;
 
-    // Spin 5-7 full rotations plus the target angle
+    // We need to position the winner slice so it's at the top (where the pointer is)
+    // The pointer is at 0 degrees (top), and slices are drawn starting from 0 degrees
+    // Each slice starts at: index * sliceAngle
+    // We want the CENTER of the winner slice to be at the top (0 degrees or 2π)
+    const winnerSliceCenter = winnerIndex * sliceAngle + sliceAngle / 2;
+
+    // Spin 5-7 full rotations, then rotate so winner is at top
     const fullRotations = 5 + Math.random() * 2;
-    const totalRotation = fullRotations * 2 * Math.PI + (2 * Math.PI - winnerAngle);
+    const targetAngle = (2 * Math.PI) - winnerSliceCenter; // Negative rotation to align winner at top
+    const totalRotation = fullRotations * 2 * Math.PI + targetAngle;
 
     // Animate the spin
     let currentRotation = 0;
@@ -191,18 +197,13 @@ function addParticipant(name) {
 
     name = name.trim();
 
-    // Check if participant already exists
-    if (participants.includes(name)) {
-        logStatus(`INFO: ${name} is already in the wheel`);
-        return false;
-    }
-
     // Check max limit
     if (maxLimit > 0 && participants.length >= maxLimit) {
         logStatus(`ERROR: Max limit reached (${maxLimit})`);
         return false;
     }
 
+    // Allow duplicates - just add the participant
     participants.push(name);
     drawWheel();
     updateParticipantDisplay();
