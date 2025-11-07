@@ -10,22 +10,23 @@ body {
     min-height: 100vh;
     padding: 20px;
     color: #333;
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
 }
 
 /* Leaderboard Sidebar */
 .leaderboard {
-    flex: 0 0 300px;
+    position: fixed;
+    left: 20px;
+    top: 20px;
+    width: 300px;
     background: white;
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
     max-height: calc(100vh - 40px);
     overflow-y: auto;
-    position: sticky;
-    top: 20px;
+    z-index: 1000;
+    cursor: grab;
+    user-select: none;
 }
 
 .leaderboard h2 {
@@ -123,7 +124,6 @@ body {
 }
 
 .container {
-    flex: 1;
     max-width: 1200px;
     margin: 0 auto;
     display: flex;
@@ -549,21 +549,19 @@ h3 {
 /* Responsive */
 @media (max-width: 768px) {
     body {
-        flex-direction: column;
         padding: 10px;
     }
 
     .leaderboard {
-        flex: none;
-        width: 100%;
+        width: calc(100% - 20px);
         max-height: 400px;
-        position: relative;
-        top: 0;
-        margin-bottom: 20px;
+        left: 10px;
+        top: 10px;
     }
 
     .container {
         width: 100%;
+        margin-top: 420px;
     }
 
     h1 {

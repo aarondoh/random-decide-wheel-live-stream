@@ -651,5 +651,71 @@ function attachEventListeners() {
     });
 }
 
+// Make leaderboard draggable
+function makeLeaderboardDraggable() {
+    const leaderboard = document.querySelector('.leaderboard');
+    let isDragging = false;
+    let currentX;
+    let currentY;
+    let initialX;
+    let initialY;
+    let xOffset = 0;
+    let yOffset = 0;
+
+    // Load saved position from localStorage
+    const savedPosition = localStorage.getItem('leaderboardPosition');
+    if (savedPosition) {
+        const { x, y } = JSON.parse(savedPosition);
+        xOffset = x;
+        yOffset = y;
+        leaderboard.style.transform = `translate(${x}px, ${y}px)`;
+    }
+
+    leaderboard.addEventListener('mousedown', dragStart);
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', dragEnd);
+
+    function dragStart(e) {
+        // Only start drag if clicking on the header or empty space (not buttons, etc.)
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT' || e.target.closest('.leaderboard-item')) {
+            return;
+        }
+
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+
+        if (e.target === leaderboard || e.target.closest('.leaderboard h2')) {
+            isDragging = true;
+            leaderboard.style.cursor = 'grabbing';
+        }
+    }
+
+    function drag(e) {
+        if (isDragging) {
+            e.preventDefault();
+            currentX = e.clientX - initialX;
+            currentY = e.clientY - initialY;
+
+            xOffset = currentX;
+            yOffset = currentY;
+
+            leaderboard.style.transform = `translate(${currentX}px, ${currentY}px)`;
+        }
+    }
+
+    function dragEnd(e) {
+        if (isDragging) {
+            initialX = currentX;
+            initialY = currentY;
+            isDragging = false;
+            leaderboard.style.cursor = 'grab';
+
+            // Save position to localStorage
+            localStorage.setItem('leaderboardPosition', JSON.stringify({ x: xOffset, y: yOffset }));
+        }
+    }
+}
+
 // Start the application
 init();
+makeLeaderboardDraggable();
