@@ -154,22 +154,25 @@ app.listen(PORT, '0.0.0.0', () => {
         ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
         : `http://localhost:${PORT}`;
 
+    const webhookUrl = `${deployUrl}/webhook`;
+
     console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║  TikFinity Webhook Server for Random Decide Wheel        ║
-║                                                           ║
-║  Server running on: ${deployUrl.padEnd(40)} ║
-║                                                           ║
-║  Endpoints:                                               ║
-║  - GET  /               (Web Interface)                  ║
-║  - POST /webhook        (TikFinity webhook)              ║
-║  - GET  /events         (Browser SSE connection)         ║
-║  - POST /test-webhook   (Test with custom data)          ║
-║  - GET  /health         (Health check)                   ║
-║                                                           ║
-║  Configure TikFinity webhook URL:                        ║
-║  ${deployUrl}/webhook${' '.repeat(40 - (deployUrl + '/webhook').length)} ║
-╚═══════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════╗
+║  TikFinity Webhook Server for Random Decide Wheel             ║
+╚════════════════════════════════════════════════════════════════╝
+
+Server running on:
+  ${deployUrl}
+
+Endpoints:
+  GET  /               (Web Interface)
+  POST /webhook        (TikFinity webhook)
+  GET  /events         (Browser SSE connection)
+  POST /test-webhook   (Test with custom data)
+  GET  /health         (Health check)
+
+Configure TikFinity webhook URL:
+  ${webhookUrl}
     `);
 });
 
