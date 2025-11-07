@@ -18,13 +18,47 @@ const colors = [
     '#E63946', '#A8DADC', '#457B9D', '#F1FAEE', '#E76F51'
 ];
 
+// LocalStorage functions
+function saveToLocalStorage() {
+    try {
+        localStorage.setItem('wheelParticipants', JSON.stringify(participants));
+        localStorage.setItem('wheelMaxLimit', maxLimit.toString());
+    } catch (error) {
+        console.error('Failed to save to localStorage:', error);
+    }
+}
+
+function loadFromLocalStorage() {
+    try {
+        const savedParticipants = localStorage.getItem('wheelParticipants');
+        const savedMaxLimit = localStorage.getItem('wheelMaxLimit');
+
+        if (savedParticipants) {
+            participants = JSON.parse(savedParticipants);
+        }
+
+        if (savedMaxLimit) {
+            maxLimit = parseInt(savedMaxLimit, 10) || 0;
+            document.getElementById('maxLimit').value = maxLimit > 0 ? maxLimit : '';
+        }
+    } catch (error) {
+        console.error('Failed to load from localStorage:', error);
+    }
+}
+
 // Initialize
 function init() {
+    loadFromLocalStorage();
     drawWheel();
     updateParticipantDisplay();
     attachEventListeners();
     updateWebhookUrl();
-    logStatus('Ready! Configure TikFinity webhook and add participants.');
+
+    if (participants.length > 0) {
+        logStatus(`Restored ${participants.length} participant(s) from previous session`);
+    } else {
+        logStatus('Ready! Configure TikFinity webhook and add participants.');
+    }
 }
 
 // Update webhook URL display
@@ -79,9 +113,10 @@ function drawWheel() {
     }
 
     const sliceAngle = (2 * Math.PI) / participants.length;
+    const offsetAngle = -Math.PI / 2; // Start at top instead of right
 
     participants.forEach((participant, index) => {
-        const startAngle = index * sliceAngle;
+        const startAngle = index * sliceAngle + offsetAngle;
         const endAngle = startAngle + sliceAngle;
 
         // Draw slice
@@ -140,17 +175,17 @@ function spinWheel() {
 
     // Calculate rotation to land on winner
     const sliceAngle = (2 * Math.PI) / participants.length;
+    const offsetAngle = -Math.PI / 2; // Slices start at top
 
-    // We need to position the winner slice so it's at the top (where the pointer is)
-    // In canvas, 0 degrees is at 3 o'clock (right), but our pointer is at 12 o'clock (top)
-    // Top position is at -90 degrees, which is -π/2 or 3π/2
-    // Each slice starts at: index * sliceAngle
-    // We want the CENTER of the winner slice to be at the top (-π/2)
-    const winnerSliceCenter = winnerIndex * sliceAngle + sliceAngle / 2;
+    // The winner slice center is already positioned considering the offset
+    // Since slices start at top (-π/2), the winner slice center is at:
+    const winnerSliceCenter = winnerIndex * sliceAngle + sliceAngle / 2 + offsetAngle;
 
-    // Spin 5-7 full rotations, then rotate so winner is at top
+    // We want the winner to land at the top (arrow position at -π/2)
     const fullRotations = 5 + Math.random() * 2;
-    const topPosition = -Math.PI / 2; // -90 degrees (top of circle)
+    const topPosition = -Math.PI / 2; // -90 degrees (arrow at top)
+
+    // Calculate how much to rotate to align winner at top
     const targetAngle = topPosition - winnerSliceCenter;
     const totalRotation = fullRotations * 2 * Math.PI + targetAngle;
 
@@ -207,6 +242,7 @@ function addParticipant(name) {
 
     // Allow duplicates - just add the participant
     participants.push(name);
+    saveToLocalStorage();
     drawWheel();
     updateParticipantDisplay();
     logStatus(`Added: ${name} (${participants.length}/${maxLimit || '∞'})`);
@@ -218,6 +254,7 @@ function removeParticipant(name) {
     const index = participants.indexOf(name);
     if (index > -1) {
         participants.splice(index, 1);
+        saveToLocalStorage();
         drawWheel();
         updateParticipantDisplay();
         logStatus(`Removed: ${name}`);
@@ -228,6 +265,7 @@ function removeParticipant(name) {
 function removeLastParticipant() {
     if (participants.length > 0) {
         const removed = participants.pop();
+        saveToLocalStorage();
         drawWheel();
         updateParticipantDisplay();
         logStatus(`Removed: ${removed}`);
@@ -240,6 +278,7 @@ function clearAllParticipants() {
 
     const count = participants.length;
     participants = [];
+    saveToLocalStorage();
     drawWheel();
     updateParticipantDisplay();
     logStatus(`Cleared ${count} participant(s)`);
@@ -404,6 +443,7 @@ function attachEventListeners() {
     document.getElementById('setLimitBtn').addEventListener('click', () => {
         const value = parseInt(document.getElementById('maxLimit').value) || 0;
         maxLimit = Math.max(0, value);
+        saveToLocalStorage();
         updateParticipantDisplay();
         logStatus(`Max limit set to: ${maxLimit || 'No Limit'}`);
     });
