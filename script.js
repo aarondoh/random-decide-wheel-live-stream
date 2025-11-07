@@ -142,14 +142,16 @@ function spinWheel() {
     const sliceAngle = (2 * Math.PI) / participants.length;
 
     // We need to position the winner slice so it's at the top (where the pointer is)
-    // The pointer is at 0 degrees (top), and slices are drawn starting from 0 degrees
+    // In canvas, 0 degrees is at 3 o'clock (right), but our pointer is at 12 o'clock (top)
+    // Top position is at -90 degrees, which is -π/2 or 3π/2
     // Each slice starts at: index * sliceAngle
-    // We want the CENTER of the winner slice to be at the top (0 degrees or 2π)
+    // We want the CENTER of the winner slice to be at the top (-π/2)
     const winnerSliceCenter = winnerIndex * sliceAngle + sliceAngle / 2;
 
     // Spin 5-7 full rotations, then rotate so winner is at top
     const fullRotations = 5 + Math.random() * 2;
-    const targetAngle = (2 * Math.PI) - winnerSliceCenter; // Negative rotation to align winner at top
+    const topPosition = -Math.PI / 2; // -90 degrees (top of circle)
+    const targetAngle = topPosition - winnerSliceCenter;
     const totalRotation = fullRotations * 2 * Math.PI + targetAngle;
 
     // Animate the spin
