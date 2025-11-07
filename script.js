@@ -7,6 +7,7 @@ let userStats = {}; // Track stats per user: {username: {totalCoins: X, submissi
 let isSpinning = false;
 let webhookServer = null;
 let processedWebhooks = new Map(); // Track processed webhooks with timestamps: hash -> timestamp
+let giftCombos = new Map(); // Track gift combos: "username-giftId" -> {coins, repeatCount, timestamp, processed}
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -468,43 +469,73 @@ function handleWebhookData(data) {
     // Display the raw webhook data in debug section
     updateWebhookDebug(data);
 
-    // Prevent duplicate processing using unique hash with time window
+    // Handle TikTok gift combos and duplicates
     if (data.event === 'gift' && data.username) {
-        // Create unique identifier including repeatCount to distinguish single vs multiple gifts
         const giftId = data.raw?.giftId || 'unknown';
-        const repeatCount = data.raw?.repeatCount || data.giftCount || 1;
-        const webhookHash = `${data.username}-${giftId}-${data.coinValue}-${repeatCount}`;
+        const repeatCount = parseInt(data.raw?.repeatCount || data.giftCount || 1);
+        const coinValue = data.coinValue || 0;
         const now = Date.now();
+        const comboKey = `${data.username}-${giftId}`;
+        const webhookHash = `${data.username}-${giftId}-${coinValue}-${repeatCount}`;
 
-        console.log(`[Duplicate Check] Hash: ${webhookHash}, Timestamp: ${data.timestamp}`);
+        console.log(`[Gift Check] User: ${data.username}, Gift: ${giftId}, Coins: ${coinValue}, Repeat: ${repeatCount}`);
 
-        // Check if we've seen this EXACT gift combination in the last 5 seconds
-        // 5 seconds is enough to catch TikFinity duplicates but allow rapid legitimate gifts
-        const recentKey = Array.from(processedWebhooks.entries())
+        // Check for exact duplicate (same webhook sent twice by TikFinity)
+        const recentDuplicate = Array.from(processedWebhooks.entries())
             .find(([key, timestamp]) => {
                 const timeDiff = now - timestamp;
-                if (key === webhookHash) {
-                    console.log(`[Duplicate Check] Found matching hash, time difference: ${timeDiff}ms`);
-                }
-                return key === webhookHash && timeDiff < 5000; // 5 second window
+                return key === webhookHash && timeDiff < 5000;
             });
 
-        if (recentKey) {
-            console.log('✋ Duplicate webhook detected (within 5s), ignoring...', webhookHash);
-            logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${data.coinValue} coins (x${repeatCount})`);
+        if (recentDuplicate) {
+            console.log('✋ Exact duplicate webhook, ignoring...', webhookHash);
+            logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${coinValue} coins (x${repeatCount})`);
             return;
         }
 
-        console.log(`✓ New webhook accepted:`, webhookHash);
+        // Check for combo (user sent gift, then combo'd it within 30 seconds)
+        const existingCombo = giftCombos.get(comboKey);
+        if (existingCombo && (now - existingCombo.timestamp) < 30000) {
+            console.log(`[Combo Check] Found existing: ${existingCombo.repeatCount}x, New: ${repeatCount}x`);
 
-        // Store with timestamp for time-based cleanup
+            // If new repeatCount is HIGHER, this is a combo - ignore the earlier gift
+            if (repeatCount > existingCombo.repeatCount && !existingCombo.processed) {
+                console.log(`✓ Combo detected! Upgrading from ${existingCombo.repeatCount}x to ${repeatCount}x`);
+                logStatus(`🎯 Gift combo: ${data.username} upgraded to ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
+
+                // Update combo tracking with new higher value
+                giftCombos.set(comboKey, {
+                    coins: coinValue,
+                    repeatCount: repeatCount,
+                    timestamp: now,
+                    processed: false
+                });
+            } else if (repeatCount <= existingCombo.repeatCount) {
+                // Lower or equal repeatCount - this is a duplicate/out-of-order webhook
+                console.log('✋ Ignoring lower/equal repeatCount (already processed higher combo)');
+                logStatus(`⚠️ Ignored: ${data.username} - lower combo value`);
+                return;
+            }
+        } else {
+            // First time seeing this gift or outside 30s window
+            console.log(`✓ New gift accepted: ${repeatCount}x ${data.raw?.giftName || 'gifts'}`);
+            giftCombos.set(comboKey, {
+                coins: coinValue,
+                repeatCount: repeatCount,
+                timestamp: now,
+                processed: false
+            });
+        }
+
+        // Store webhook hash to prevent exact duplicates
         processedWebhooks.set(webhookHash, now);
 
-        // Clean up old entries (older than 5 seconds)
+        // Clean up old entries
         for (const [key, timestamp] of processedWebhooks.entries()) {
-            if (now - timestamp > 5000) {
-                processedWebhooks.delete(key);
-            }
+            if (now - timestamp > 5000) processedWebhooks.delete(key);
+        }
+        for (const [key, combo] of giftCombos.entries()) {
+            if (now - combo.timestamp > 30000) giftCombos.delete(key);
         }
     }
 
