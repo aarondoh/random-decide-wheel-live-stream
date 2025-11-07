@@ -6,8 +6,9 @@ A simple and fair random decide wheel for TikTok live streams that integrates wi
 
 - **Fair Random Selection**: Each participant has an equal chance (1/n) of winning
 - **TikFinity Integration**: Automatically adds viewers who send specific gifts
+- **Gift Count Support**: Multiple gifts (e.g., Roses x 15) = multiple entries for fair odds
 - **Max Limit Control**: Set a maximum number of participants or allow unlimited entries
-- **No Duplicate Names**: Prevents the same username from being added multiple times
+- **Duplicate Entries Allowed**: Users can be added multiple times for better odds
 - **Manual Management**: Add or remove participants manually
 - **Real-time Updates**: Live participant count and status updates
 - **Smooth Animations**: Professional spinning animation with 4-second duration
@@ -71,9 +72,9 @@ When viewers send the specified gift during your TikTok live stream, their usern
 ### Adding Participants
 
 **Automatic (TikFinity):**
-- Viewers send the specified gift
+- Viewers send gifts during your TikTok live stream
 - Their username is automatically added to the wheel
-- Duplicates are prevented
+- Multiple gifts = multiple entries (e.g., Roses x 15 = 15 entries)
 
 **Manual:**
 - Type a name in the "Add name manually" field
@@ -110,19 +111,35 @@ You can test the webhook integration without TikFinity:
 
 **Local Testing:**
 ```bash
-# Test with curl
+# Test single gift
 curl -X POST http://localhost:3000/test-webhook \
   -H "Content-Type: application/json" \
-  -d '{"username": "TestUser123", "giftName": "Rose"}'
+  -d '{"username": "TestUser123"}'
+
+# Test multiple gifts (e.g., Roses x 15)
+curl -X POST http://localhost:3000/test-webhook \
+  -H "Content-Type: application/json" \
+  -d '{"username": "TestUser123", "giftCount": 15}'
 ```
 
 **Railway Testing:**
 ```bash
-# Replace YOUR-APP-URL with your Railway deployment URL
+# Test single gift
 curl -X POST https://YOUR-APP-URL.railway.app/test-webhook \
   -H "Content-Type: application/json" \
-  -d '{"username": "TestUser123", "giftName": "Rose"}'
+  -d '{"username": "TestUser123"}'
+
+# Test multiple gifts
+curl -X POST https://YOUR-APP-URL.railway.app/test-webhook \
+  -H "Content-Type: application/json" \
+  -d '{"username": "TestUser123", "giftCount": 15}'
 ```
+
+**Gift Count Handling:**
+- When a viewer sends multiple gifts (e.g., Roses x 15), the webhook receives the count
+- The user is added to the wheel 15 times (15 separate entries)
+- This increases their odds proportionally to gifts sent
+- Respects max participant limit (stops adding if limit reached)
 
 Or use any API testing tool (Postman, Insomnia, etc.) to send POST requests to:
 - Local: `http://localhost:3000/test-webhook`

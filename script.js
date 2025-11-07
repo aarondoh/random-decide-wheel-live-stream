@@ -326,14 +326,30 @@ function startWebhookListener() {
 // Handle incoming webhook data from TikFinity
 function handleWebhookData(data) {
     // TikFinity sends gift event data when viewer sends a gift
-    // Format: { event: 'gift', username: 'user123', raw: {...}, timestamp: ... }
+    // Format: { event: 'gift', username: 'user123', giftCount: 15, raw: {...}, timestamp: ... }
 
     if (data.event === 'gift' && data.username) {
         const username = data.username;
-        const success = addParticipant(username);
+        const giftCount = data.giftCount || 1;
 
-        if (success) {
-            logStatus(`🎁 ${username} sent a gift!`);
+        // Add the participant multiple times based on gift count
+        let addedCount = 0;
+        for (let i = 0; i < giftCount; i++) {
+            const success = addParticipant(username);
+            if (success) {
+                addedCount++;
+            } else {
+                // Hit max limit, stop adding
+                break;
+            }
+        }
+
+        if (addedCount > 0) {
+            if (giftCount > 1) {
+                logStatus(`🎁 ${username} sent ${giftCount} gifts! Added ${addedCount} entries.`);
+            } else {
+                logStatus(`🎁 ${username} sent a gift!`);
+            }
         }
     } else if (data.message) {
         // Handle connection messages

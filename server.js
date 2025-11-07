@@ -68,9 +68,34 @@ app.post('/webhook', (req, res) => {
         let formattedData = {
             event: 'gift',
             username: null,
+            giftCount: 1,
             raw: data,
             timestamp: Date.now()
         };
+
+        // Try to extract gift count/quantity from various possible fields
+        const possibleCountFields = [
+            'giftCount', 'gift_count', 'count',
+            'quantity', 'amount', 'combo',
+            'repeatCount', 'repeat_count', 'num'
+        ];
+
+        for (const field of possibleCountFields) {
+            if (data[field] && typeof data[field] === 'number' && data[field] > 0) {
+                formattedData.giftCount = data[field];
+                break;
+            }
+        }
+
+        // Check nested objects for count
+        if (formattedData.giftCount === 1 && data.data) {
+            for (const field of possibleCountFields) {
+                if (data.data[field] && typeof data.data[field] === 'number' && data.data[field] > 0) {
+                    formattedData.giftCount = data.data[field];
+                    break;
+                }
+            }
+        }
 
         // Try to extract username from various possible fields
         // TikFinity may send: uniqueId, nickname, username, user, name, etc.
@@ -115,7 +140,7 @@ app.post('/webhook', (req, res) => {
             console.log('WARNING: Could not find username in payload, using fallback');
         }
 
-        console.log(`Extracted username: ${formattedData.username}`);
+        console.log(`Extracted username: ${formattedData.username}, Gift count: ${formattedData.giftCount}`);
 
         // Broadcast to all connected clients
         if (clients.length > 0) {
@@ -127,7 +152,12 @@ app.post('/webhook', (req, res) => {
             console.log('No clients connected to broadcast to');
         }
 
-        res.status(200).json({ success: true, message: 'Webhook received', username: formattedData.username });
+        res.status(200).json({
+            success: true,
+            message: 'Webhook received',
+            username: formattedData.username,
+            giftCount: formattedData.giftCount
+        });
     } catch (error) {
         console.error('Error processing webhook:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -139,7 +169,7 @@ app.post('/test-webhook', (req, res) => {
     const testData = {
         event: 'gift',
         username: req.body.username || 'TestUser',
-        giftName: req.body.giftName || 'Rose',
+        giftCount: req.body.giftCount || req.body.count || 1,
         timestamp: Date.now()
     };
 
