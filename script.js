@@ -2,7 +2,6 @@
 let participants = [];
 let maxLimit = 0; // 0 means no limit
 let isSpinning = false;
-let targetGiftName = '';
 let webhookServer = null;
 
 // Canvas setup
@@ -287,16 +286,11 @@ function logStatus(message) {
 
 // TikFinity Webhook Server
 async function startWebhookServer() {
-    if (!targetGiftName) {
-        logStatus('ERROR: Please set the gift name first');
-        return;
-    }
-
     try {
         const serverUrl = window.location.origin;
         logStatus(`Connecting to webhook server...`);
-        logStatus(`Listening for "${targetGiftName}" gifts from TikFinity`);
-        logStatus(`SETUP: Configure TikFinity to send webhooks to ${serverUrl}/webhook`);
+        logStatus(`Listening for gift events from TikFinity`);
+        logStatus(`Make sure you've configured TikFinity Actions & Events!`);
 
         // Start listening for webhook data via server
         startWebhookListener();
@@ -330,16 +324,19 @@ function startWebhookListener() {
 
 // Handle incoming webhook data from TikFinity
 function handleWebhookData(data) {
-    // TikFinity webhook structure may vary - adjust as needed
-    // Expected format: { event: 'gift', username: 'user123', giftName: 'Rose', ... }
+    // TikFinity sends gift event data when viewer sends a gift
+    // Format: { event: 'gift', username: 'user123', raw: {...}, timestamp: ... }
 
-    if (data.event === 'gift' && data.giftName === targetGiftName) {
-        const username = data.username || data.uniqueId || 'Unknown';
+    if (data.event === 'gift' && data.username) {
+        const username = data.username;
         const success = addParticipant(username);
 
         if (success) {
-            logStatus(`🎁 ${username} sent ${targetGiftName}!`);
+            logStatus(`🎁 ${username} sent a gift!`);
         }
+    } else if (data.message) {
+        // Handle connection messages
+        logStatus(data.message);
     }
 }
 
@@ -373,15 +370,6 @@ function attachEventListeners() {
         maxLimit = Math.max(0, value);
         updateParticipantDisplay();
         logStatus(`Max limit set to: ${maxLimit || 'No Limit'}`);
-    });
-
-    document.getElementById('setGiftBtn').addEventListener('click', () => {
-        targetGiftName = document.getElementById('giftName').value.trim();
-        if (targetGiftName) {
-            logStatus(`Target gift set to: ${targetGiftName}`);
-        } else {
-            logStatus('ERROR: Gift name cannot be empty');
-        }
     });
 
     document.getElementById('startWebhookBtn').addEventListener('click', startWebhookServer);

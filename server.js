@@ -55,74 +55,79 @@ app.get('/events', (req, res) => {
 
 // Webhook endpoint for TikFinity
 app.post('/webhook', (req, res) => {
-    console.log('Received webhook:', JSON.stringify(req.body, null, 2));
+    console.log('=== TikFinity Webhook Received ===');
+    console.log('Full payload:', JSON.stringify(req.body, null, 2));
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
     try {
         const data = req.body;
 
-        // TikFinity sends various event types
-        // Common structure: { event, data: { uniqueId, nickname, giftName, ... } }
+        // TikFinity sends gift event data when configured in Actions & Events
+        // We'll handle flexible formats and extract username
 
-        let formattedData = null;
+        let formattedData = {
+            event: 'gift',
+            username: null,
+            raw: data,
+            timestamp: Date.now()
+        };
 
-        // Handle different TikFinity webhook formats
-        if (data.event === 'gift' || data.type === 'gift') {
-            formattedData = {
-                event: 'gift',
-                username: data.data?.uniqueId || data.uniqueId || data.username || 'Unknown',
-                nickname: data.data?.nickname || data.nickname || '',
-                giftName: data.data?.giftName || data.giftName || '',
-                giftId: data.data?.giftId || data.giftId || 0,
-                timestamp: Date.now()
-            };
+        // Try to extract username from various possible fields
+        // TikFinity may send: uniqueId, nickname, username, user, name, etc.
+        const possibleUsernameFields = [
+            'uniqueId', 'unique_id',
+            'username', 'user', 'userName', 'user_name',
+            'nickname', 'nick', 'displayName', 'display_name',
+            'name', 'screenName', 'screen_name'
+        ];
 
-            console.log(`Gift received: ${formattedData.username} sent ${formattedData.giftName}`);
+        // Check top level
+        for (const field of possibleUsernameFields) {
+            if (data[field]) {
+                formattedData.username = data[field];
+                break;
+            }
         }
-        // Handle other event types if needed
-        else if (data.event === 'follow' || data.type === 'follow') {
-            formattedData = {
-                event: 'follow',
-                username: data.data?.uniqueId || data.uniqueId || 'Unknown',
-                timestamp: Date.now()
-            };
+
+        // Check nested data object if it exists
+        if (!formattedData.username && data.data) {
+            for (const field of possibleUsernameFields) {
+                if (data.data[field]) {
+                    formattedData.username = data.data[field];
+                    break;
+                }
+            }
         }
-        else if (data.event === 'share' || data.type === 'share') {
-            formattedData = {
-                event: 'share',
-                username: data.data?.uniqueId || data.uniqueId || 'Unknown',
-                timestamp: Date.now()
-            };
+
+        // Check nested user object if it exists
+        if (!formattedData.username && data.user) {
+            for (const field of possibleUsernameFields) {
+                if (data.user[field]) {
+                    formattedData.username = data.user[field];
+                    break;
+                }
+            }
         }
-        else if (data.event === 'comment' || data.type === 'comment') {
-            formattedData = {
-                event: 'comment',
-                username: data.data?.uniqueId || data.uniqueId || 'Unknown',
-                comment: data.data?.comment || data.comment || '',
-                timestamp: Date.now()
-            };
+
+        // If still no username, use a fallback
+        if (!formattedData.username) {
+            formattedData.username = `User_${Date.now()}`;
+            console.log('WARNING: Could not find username in payload, using fallback');
         }
-        else {
-            // Generic event handling
-            formattedData = {
-                event: data.event || data.type || 'unknown',
-                ...data,
-                timestamp: Date.now()
-            };
-        }
+
+        console.log(`Extracted username: ${formattedData.username}`);
 
         // Broadcast to all connected clients
-        if (formattedData && clients.length > 0) {
+        if (clients.length > 0) {
             clients.forEach(client => {
                 client.res.write(`data: ${JSON.stringify(formattedData)}\n\n`);
             });
             console.log(`Broadcasted to ${clients.length} client(s)`);
-        } else if (!formattedData) {
-            console.log('No formatted data to send');
         } else {
             console.log('No clients connected to broadcast to');
         }
 
-        res.status(200).json({ success: true, message: 'Webhook received' });
+        res.status(200).json({ success: true, message: 'Webhook received', username: formattedData.username });
     } catch (error) {
         console.error('Error processing webhook:', error);
         res.status(500).json({ success: false, error: error.message });

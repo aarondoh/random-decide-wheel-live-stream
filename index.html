@@ -26,40 +26,61 @@
             <div class="instruction-step">
                 <div class="step-number">1</div>
                 <div class="step-content">
-                    <h3>Open TikFinity</h3>
-                    <p>Launch your TikFinity application and connect to your TikTok account</p>
+                    <h3>Start Your TikTok Live Stream</h3>
+                    <p>Go live on TikTok, then open <a href="https://tikfinity.zerody.one" target="_blank">TikFinity</a> and connect to your live stream</p>
                 </div>
             </div>
 
             <div class="instruction-step">
                 <div class="step-number">2</div>
                 <div class="step-content">
-                    <h3>Configure Webhook</h3>
-                    <p>In TikFinity, go to <strong>Settings → Webhooks → Add Webhook</strong></p>
+                    <h3>Copy Your Webhook URL</h3>
                     <div class="webhook-url-box">
-                        <label>Use this Webhook URL:</label>
+                        <label>Your Webhook URL (copy this):</label>
                         <div class="url-display" id="webhookUrlDisplay">
                             <span id="webhookUrl">Loading...</span>
                             <button id="copyUrlBtn" class="btn-copy" title="Copy to clipboard">📋</button>
                         </div>
                     </div>
-                    <p class="hint">Select <strong>"Gift"</strong> event and save the webhook</p>
                 </div>
             </div>
 
             <div class="instruction-step">
                 <div class="step-number">3</div>
                 <div class="step-content">
-                    <h3>Configure Settings Below</h3>
-                    <p>Set your gift name and participant limit, then click "Start Webhook Connection"</p>
+                    <h3>Create Action in TikFinity</h3>
+                    <p>In TikFinity, go to <strong>Actions & Events</strong> page:</p>
+                    <ol class="sub-steps">
+                        <li>Click <strong>"Create new Action"</strong></li>
+                        <li>Give it a name (e.g., "Add to Wheel")</li>
+                        <li>Scroll down and enable <strong>"Trigger Webhook"</strong></li>
+                        <li>Paste your webhook URL in the left textbox</li>
+                        <li>Click <strong>"Save"</strong></li>
+                    </ol>
                 </div>
             </div>
 
             <div class="instruction-step">
                 <div class="step-number">4</div>
                 <div class="step-content">
-                    <h3>Start Your Stream!</h3>
-                    <p>Go live on TikTok. When viewers send the specified gift, they'll be automatically added to the wheel!</p>
+                    <h3>Create Event in TikFinity</h3>
+                    <p>Still on the Actions & Events page:</p>
+                    <ol class="sub-steps">
+                        <li>Click <strong>"Create new Event"</strong></li>
+                        <li>Under <strong>"Define what should trigger this event"</strong>, select <strong>"Gift"</strong></li>
+                        <li>Choose the specific gift type (e.g., Rose, Galaxy)</li>
+                        <li>Under <strong>"Trigger all of these actions"</strong>, select your webhook action</li>
+                        <li>Click <strong>"Save"</strong></li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <h3>Configure Settings Below & Test</h3>
+                    <p>Set your max participant limit below, then click "Start Webhook Connection"</p>
+                    <p class="hint">When viewers send the gift during your stream, they'll be automatically added to the wheel!</p>
                 </div>
             </div>
         </div>
@@ -73,11 +94,6 @@
                 <button id="setLimitBtn" class="btn btn-secondary">Set Limit</button>
             </div>
 
-            <div class="setting-group">
-                <label for="giftName">TikFinity Gift Name:</label>
-                <input type="text" id="giftName" placeholder="e.g., Rose, Galaxy">
-                <button id="setGiftBtn" class="btn btn-secondary">Set Gift</button>
-            </div>
 
             <div class="setting-group">
                 <button id="startWebhookBtn" class="btn btn-secondary">Start Webhook Connection</button>

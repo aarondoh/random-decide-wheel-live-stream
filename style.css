@@ -159,6 +159,26 @@ h3 {
     font-style: italic;
 }
 
+.sub-steps {
+    margin: 10px 0 0 20px;
+    color: #666;
+    line-height: 1.8;
+}
+
+.sub-steps li {
+    margin-bottom: 8px;
+}
+
+.step-content a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.step-content a:hover {
+    text-decoration: underline;
+}
+
 .webhook-url-box {
     background: white;
     padding: 15px;
