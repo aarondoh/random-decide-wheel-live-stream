@@ -47,7 +47,7 @@ function loadFromLocalStorage() {
             participants = JSON.parse(savedParticipants);
         }
 
-        if (savedMaxLimit) {
+        if (savedMaxLimit !== null) {
             maxLimit = parseInt(savedMaxLimit, 10) || 0;
             document.getElementById('maxLimit').value = maxLimit > 0 ? maxLimit : '';
         }
