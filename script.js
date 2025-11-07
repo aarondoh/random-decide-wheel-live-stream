@@ -6,7 +6,7 @@ let userCoinBalances = {}; // Track remaining coins per user: {username: coinAmo
 let userStats = {}; // Track stats per user: {username: {totalCoins: X, submissions: Y}}
 let isSpinning = false;
 let webhookServer = null;
-let processedWebhooks = new Set(); // Track processed webhooks by unique hash
+let processedWebhooks = new Map(); // Track processed webhooks with timestamps: hash -> timestamp
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -468,21 +468,34 @@ function handleWebhookData(data) {
     // Display the raw webhook data in debug section
     updateWebhookDebug(data);
 
-    // Prevent duplicate processing using unique hash
+    // Prevent duplicate processing using unique hash with time window
     if (data.event === 'gift' && data.username) {
-        // Create unique identifier from username, coinValue, and timestamp
-        const webhookHash = `${data.username}-${data.coinValue}-${data.timestamp}`;
+        // Create unique identifier from username, coinValue, and giftId (not timestamp)
+        // This catches duplicates even if they have slightly different timestamps
+        const giftId = data.raw?.giftId || 'unknown';
+        const webhookHash = `${data.username}-${data.coinValue}-${giftId}`;
+        const now = Date.now();
 
-        if (processedWebhooks.has(webhookHash)) {
-            console.log('Duplicate webhook detected (hash match), ignoring...', webhookHash);
+        // Check if we've seen this exact gift in the last 10 seconds
+        const recentKey = Array.from(processedWebhooks.entries())
+            .find(([key, timestamp]) => {
+                return key === webhookHash && (now - timestamp) < 10000; // 10 second window
+            });
+
+        if (recentKey) {
+            console.log('Duplicate webhook detected (within 10s), ignoring...', webhookHash);
+            logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${data.coinValue} coins`);
             return;
         }
 
-        // Add to processed set and clean up old entries (keep last 100)
-        processedWebhooks.add(webhookHash);
-        if (processedWebhooks.size > 100) {
-            const firstItem = processedWebhooks.values().next().value;
-            processedWebhooks.delete(firstItem);
+        // Store with timestamp for time-based cleanup
+        processedWebhooks.set(webhookHash, now);
+
+        // Clean up old entries (older than 10 seconds)
+        for (const [key, timestamp] of processedWebhooks.entries()) {
+            if (now - timestamp > 10000) {
+                processedWebhooks.delete(key);
+            }
         }
     }
 
