@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -10,20 +11,15 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Serve static files (HTML, CSS, JS)
+app.use(express.static(path.join(__dirname)));
+
 // Store connected clients for Server-Sent Events
 let clients = [];
 
-// Health check endpoint
+// Serve the main page
 app.get('/', (req, res) => {
-    res.json({
-        status: 'running',
-        message: 'TikFinity Webhook Server for Random Decide Wheel',
-        endpoints: {
-            webhook: 'POST /webhook',
-            events: 'GET /events (SSE)',
-            health: 'GET /health'
-        }
-    });
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/health', (req, res) => {
@@ -153,21 +149,26 @@ app.post('/test-webhook', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
+    const deployUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+        ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
+        : `http://localhost:${PORT}`;
+
     console.log(`
 ╔═══════════════════════════════════════════════════════════╗
 ║  TikFinity Webhook Server for Random Decide Wheel        ║
 ║                                                           ║
-║  Server running on: http://localhost:${PORT}              ║
+║  Server running on: ${deployUrl.padEnd(40)} ║
 ║                                                           ║
 ║  Endpoints:                                               ║
+║  - GET  /               (Web Interface)                  ║
 ║  - POST /webhook        (TikFinity webhook)              ║
 ║  - GET  /events         (Browser SSE connection)         ║
 ║  - POST /test-webhook   (Test with custom data)          ║
 ║  - GET  /health         (Health check)                   ║
 ║                                                           ║
-║  Configure TikFinity to send webhooks to:                ║
-║  http://localhost:${PORT}/webhook                         ║
+║  Configure TikFinity webhook URL:                        ║
+║  ${deployUrl}/webhook${' '.repeat(40 - (deployUrl + '/webhook').length)} ║
 ╚═══════════════════════════════════════════════════════════╝
     `);
 });

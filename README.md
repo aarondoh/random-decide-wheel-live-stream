@@ -13,27 +13,41 @@ A simple and fair random decide wheel for TikTok live streams that integrates wi
 - **Smooth Animations**: Professional spinning animation with 4-second duration
 - **Responsive Design**: Works on desktop and mobile devices
 
-## Quick Start
+## Deployment Options
 
-### 1. Install Dependencies
+### Option 1: Deploy to Railway (Recommended for Production)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/aarondoh/random-decide-wheel-live-stream)
+
+1. Click the "Deploy on Railway" button above
+2. Connect your GitHub account if prompted
+3. Configure your Railway project
+4. Wait for deployment to complete
+5. Railway will provide you with a public URL (e.g., `https://your-app.railway.app`)
+6. Open the URL in your browser to access the wheel
+7. Configure TikFinity webhook to use: `https://your-app.railway.app/webhook`
+
+### Option 2: Run Locally
+
+#### 1. Install Dependencies
 
 ```bash
 npm install
 ```
 
-### 2. Start the Webhook Server
+#### 2. Start the Server
 
 ```bash
 npm start
 ```
 
-The server will start on `http://localhost:3000` by default.
+The server will start on `http://localhost:3000` by default and serve the web interface.
 
-### 3. Open the Wheel Interface
+#### 3. Open the Wheel Interface
 
-Open `index.html` in your web browser (double-click the file or use a live server).
+Navigate to `http://localhost:3000` in your web browser.
 
-### 4. Configure TikFinity
+#### 4. Configure TikFinity
 
 1. Open TikFinity application
 2. Go to **Settings** > **Webhooks**
@@ -41,14 +55,14 @@ Open `index.html` in your web browser (double-click the file or use a live serve
 4. Select the events you want to track (usually "Gift" events)
 5. Save the webhook configuration
 
-### 5. Configure the Wheel
+#### 5. Configure the Wheel
 
 1. In the wheel interface, enter the gift name (e.g., "Rose", "Galaxy")
 2. Click "Set Gift"
 3. Optionally set a max participant limit (0 = unlimited)
-4. Click "Start Webhook" to connect to the server
+4. Click "Start Webhook Connection"
 
-### 6. Start Your Stream!
+#### 6. Start Your Stream!
 
 When viewers send the specified gift during your TikTok live stream, their usernames will automatically be added to the wheel!
 
@@ -90,15 +104,11 @@ When viewers send the specified gift during your TikTok live stream, their usern
 - Examples: "Rose", "Galaxy", "Sports Car", "Lion"
 - Must match the exact gift name from TikTok
 
-**Webhook Port:**
-- Default: 3000
-- Change if you need a different port
-- Must match the port in server.js
-
 ## Testing Without TikFinity
 
 You can test the webhook integration without TikFinity:
 
+**Local Testing:**
 ```bash
 # Test with curl
 curl -X POST http://localhost:3000/test-webhook \
@@ -106,16 +116,27 @@ curl -X POST http://localhost:3000/test-webhook \
   -d '{"username": "TestUser123", "giftName": "Rose"}'
 ```
 
+**Railway Testing:**
+```bash
+# Replace YOUR-APP-URL with your Railway deployment URL
+curl -X POST https://YOUR-APP-URL.railway.app/test-webhook \
+  -H "Content-Type: application/json" \
+  -d '{"username": "TestUser123", "giftName": "Rose"}'
+```
+
 Or use any API testing tool (Postman, Insomnia, etc.) to send POST requests to:
-- `http://localhost:3000/test-webhook`
+- Local: `http://localhost:3000/test-webhook`
+- Railway: `https://YOUR-APP-URL.railway.app/test-webhook`
 
 ## Files
 
 - `index.html` - Main wheel interface
 - `style.css` - Styling and animations
 - `script.js` - Wheel logic and TikFinity integration
-- `server.js` - Node.js webhook server
+- `server.js` - Node.js webhook server (serves static files + handles webhooks)
 - `package.json` - Node.js dependencies
+- `railway.json` - Railway deployment configuration
+- `.railwayignore` - Files to exclude from Railway deployment
 
 ## Fairness Guarantee
 
@@ -133,21 +154,28 @@ This ensures:
 ## Troubleshooting
 
 **Webhook not receiving data:**
-- Make sure server.js is running (`npm start`)
-- Check TikFinity webhook URL is correct
-- Verify the port matches (default: 3000)
-- Check firewall settings
+- Make sure the server is running and accessible
+- Check TikFinity webhook URL is correct (use your Railway URL for production)
+- Verify TikFinity is sending gift events
+- Check the Status log in the web interface for connection errors
 
 **Participants not being added:**
 - Verify the gift name matches exactly (case-sensitive)
 - Check the browser console for errors (F12)
-- Make sure "Start Webhook" was clicked
+- Make sure "Start Webhook Connection" was clicked
 - Confirm max limit hasn't been reached
+- Test with the `/test-webhook` endpoint first
 
 **Wheel not spinning:**
 - Ensure there's at least one participant
 - Check that a spin isn't already in progress
 - Refresh the page if it becomes unresponsive
+
+**Railway Deployment Issues:**
+- Check Railway logs for errors
+- Ensure all environment variables are set correctly
+- Verify the public domain is accessible
+- Make sure the PORT environment variable is being used
 
 ## Requirements
 

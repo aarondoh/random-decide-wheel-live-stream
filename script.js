@@ -256,31 +256,29 @@ function logStatus(message) {
 
 // TikFinity Webhook Server
 async function startWebhookServer() {
-    const port = document.getElementById('webhookPort').value;
-
     if (!targetGiftName) {
         logStatus('ERROR: Please set the gift name first');
         return;
     }
 
     try {
-        // In a real implementation, this would start a Node.js server
-        // For browser-based implementation, we'll simulate it
-        logStatus(`Webhook server starting on port ${port}...`);
+        const serverUrl = window.location.origin;
+        logStatus(`Connecting to webhook server...`);
         logStatus(`Listening for "${targetGiftName}" gifts from TikFinity`);
-        logStatus('SETUP: Configure TikFinity to send webhooks to http://localhost:' + port + '/webhook');
+        logStatus(`SETUP: Configure TikFinity to send webhooks to ${serverUrl}/webhook`);
 
-        // Start listening for webhook data via local server
-        startWebhookListener(port);
+        // Start listening for webhook data via server
+        startWebhookListener();
     } catch (error) {
         logStatus(`ERROR: ${error.message}`);
     }
 }
 
-// Webhook listener (requires local server - see server.js)
-function startWebhookListener(port) {
-    // This connects to the local webhook server
-    const eventSource = new EventSource(`http://localhost:${port}/events`);
+// Webhook listener (connects to server.js)
+function startWebhookListener() {
+    // This connects to the webhook server (works with Railway deployment)
+    const serverUrl = window.location.origin;
+    const eventSource = new EventSource(`${serverUrl}/events`);
 
     eventSource.onmessage = function(event) {
         try {
