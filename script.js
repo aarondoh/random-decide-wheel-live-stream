@@ -214,11 +214,28 @@ function spinWheel() {
         if (progress < 1) {
             requestAnimationFrame(animate);
         } else {
-            // Spin complete
+            // Spin complete - determine winner based on final rotation
+            // Normalize rotation to 0-2π range
+            const normalizedRotation = ((currentRotation % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+
+            // The arrow points at -π/2 (top). After rotation, which slice is there?
+            // We need to find which slice's range includes the top position
+            const topPosition = -Math.PI / 2;
+
+            // Calculate the angle at the top after rotation (inverse rotation)
+            const angleAtTop = (topPosition - normalizedRotation + (2 * Math.PI)) % (2 * Math.PI);
+
+            // Adjust for the offset angle (slices start at -π/2)
+            const adjustedAngle = (angleAtTop + Math.PI / 2 + (2 * Math.PI)) % (2 * Math.PI);
+
+            // Which slice does this angle fall into?
+            const actualWinnerIndex = Math.floor(adjustedAngle / sliceAngle) % participants.length;
+            const actualWinner = participants[actualWinnerIndex];
+
             isSpinning = false;
             document.getElementById('spinBtn').disabled = false;
-            document.getElementById('winnerDisplay').textContent = `🎉 WINNER: ${winner} 🎉`;
-            logStatus(`Winner selected: ${winner}`);
+            document.getElementById('winnerDisplay').textContent = `🎉 WINNER: ${actualWinner} 🎉`;
+            logStatus(`Winner selected: ${actualWinner}`);
         }
     }
 
