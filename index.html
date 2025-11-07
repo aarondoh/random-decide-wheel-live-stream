@@ -20,8 +20,52 @@
             <div class="winner-display" id="winnerDisplay"></div>
         </div>
 
+        <div class="instructions-section">
+            <h2>📋 Setup Instructions</h2>
+
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <h3>Open TikFinity</h3>
+                    <p>Launch your TikFinity application and connect to your TikTok account</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <h3>Configure Webhook</h3>
+                    <p>In TikFinity, go to <strong>Settings → Webhooks → Add Webhook</strong></p>
+                    <div class="webhook-url-box">
+                        <label>Use this Webhook URL:</label>
+                        <div class="url-display" id="webhookUrlDisplay">
+                            <span id="webhookUrl">Loading...</span>
+                            <button id="copyUrlBtn" class="btn-copy" title="Copy to clipboard">📋</button>
+                        </div>
+                    </div>
+                    <p class="hint">Select <strong>"Gift"</strong> event and save the webhook</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <h3>Configure Settings Below</h3>
+                    <p>Set your gift name and participant limit, then click "Start Webhook Connection"</p>
+                </div>
+            </div>
+
+            <div class="instruction-step">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <h3>Start Your Stream!</h3>
+                    <p>Go live on TikTok. When viewers send the specified gift, they'll be automatically added to the wheel!</p>
+                </div>
+            </div>
+        </div>
+
         <div class="settings">
-            <h2>Settings</h2>
+            <h2>⚙️ Settings</h2>
 
             <div class="setting-group">
                 <label for="maxLimit">Max Participants:</label>

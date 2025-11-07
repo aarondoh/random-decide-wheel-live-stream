@@ -24,7 +24,38 @@ function init() {
     drawWheel();
     updateParticipantDisplay();
     attachEventListeners();
+    updateWebhookUrl();
     logStatus('Ready! Configure TikFinity webhook and add participants.');
+}
+
+// Update webhook URL display
+function updateWebhookUrl() {
+    const serverUrl = window.location.origin;
+    const webhookUrl = `${serverUrl}/webhook`;
+    document.getElementById('webhookUrl').textContent = webhookUrl;
+}
+
+// Copy webhook URL to clipboard
+function copyWebhookUrl() {
+    const webhookUrl = document.getElementById('webhookUrl').textContent;
+    const copyBtn = document.getElementById('copyUrlBtn');
+
+    navigator.clipboard.writeText(webhookUrl).then(() => {
+        // Visual feedback
+        copyBtn.textContent = '✓';
+        copyBtn.classList.add('copied');
+
+        logStatus('Webhook URL copied to clipboard!');
+
+        // Reset button after 2 seconds
+        setTimeout(() => {
+            copyBtn.textContent = '📋';
+            copyBtn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        logStatus('ERROR: Failed to copy to clipboard');
+        console.error('Copy failed:', err);
+    });
 }
 
 // Draw the wheel
@@ -354,6 +385,9 @@ function attachEventListeners() {
     });
 
     document.getElementById('startWebhookBtn').addEventListener('click', startWebhookServer);
+
+    // Copy button for webhook URL
+    document.getElementById('copyUrlBtn').addEventListener('click', copyWebhookUrl);
 }
 
 // Start the application
