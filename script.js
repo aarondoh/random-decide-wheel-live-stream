@@ -470,30 +470,31 @@ function handleWebhookData(data) {
 
     // Prevent duplicate processing using unique hash with time window
     if (data.event === 'gift' && data.username) {
-        // Create unique identifier from username, coinValue, and giftId (not timestamp)
-        // This catches duplicates even if they have slightly different timestamps
+        // Create unique identifier including repeatCount to distinguish single vs multiple gifts
         const giftId = data.raw?.giftId || 'unknown';
-        const webhookHash = `${data.username}-${data.coinValue}-${giftId}`;
+        const repeatCount = data.raw?.repeatCount || data.giftCount || 1;
+        const webhookHash = `${data.username}-${giftId}-${data.coinValue}-${repeatCount}`;
         const now = Date.now();
 
-        // Check if we've seen this exact gift in the last 10 seconds
+        // Check if we've seen this EXACT gift combination in the last 5 seconds
+        // 5 seconds is enough to catch TikFinity duplicates but allow rapid legitimate gifts
         const recentKey = Array.from(processedWebhooks.entries())
             .find(([key, timestamp]) => {
-                return key === webhookHash && (now - timestamp) < 10000; // 10 second window
+                return key === webhookHash && (now - timestamp) < 5000; // 5 second window
             });
 
         if (recentKey) {
-            console.log('Duplicate webhook detected (within 10s), ignoring...', webhookHash);
-            logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${data.coinValue} coins`);
+            console.log('Duplicate webhook detected (within 5s), ignoring...', webhookHash);
+            logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${data.coinValue} coins (x${repeatCount})`);
             return;
         }
 
         // Store with timestamp for time-based cleanup
         processedWebhooks.set(webhookHash, now);
 
-        // Clean up old entries (older than 10 seconds)
+        // Clean up old entries (older than 5 seconds)
         for (const [key, timestamp] of processedWebhooks.entries()) {
-            if (now - timestamp > 10000) {
+            if (now - timestamp > 5000) {
                 processedWebhooks.delete(key);
             }
         }
