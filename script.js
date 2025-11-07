@@ -476,18 +476,26 @@ function handleWebhookData(data) {
         const webhookHash = `${data.username}-${giftId}-${data.coinValue}-${repeatCount}`;
         const now = Date.now();
 
+        console.log(`[Duplicate Check] Hash: ${webhookHash}, Timestamp: ${data.timestamp}`);
+
         // Check if we've seen this EXACT gift combination in the last 5 seconds
         // 5 seconds is enough to catch TikFinity duplicates but allow rapid legitimate gifts
         const recentKey = Array.from(processedWebhooks.entries())
             .find(([key, timestamp]) => {
-                return key === webhookHash && (now - timestamp) < 5000; // 5 second window
+                const timeDiff = now - timestamp;
+                if (key === webhookHash) {
+                    console.log(`[Duplicate Check] Found matching hash, time difference: ${timeDiff}ms`);
+                }
+                return key === webhookHash && timeDiff < 5000; // 5 second window
             });
 
         if (recentKey) {
-            console.log('Duplicate webhook detected (within 5s), ignoring...', webhookHash);
+            console.log('✋ Duplicate webhook detected (within 5s), ignoring...', webhookHash);
             logStatus(`⚠️ Duplicate gift ignored: ${data.username} - ${data.coinValue} coins (x${repeatCount})`);
             return;
         }
+
+        console.log(`✓ New webhook accepted:`, webhookHash);
 
         // Store with timestamp for time-based cleanup
         processedWebhooks.set(webhookHash, now);
@@ -679,6 +687,31 @@ function attachEventListeners() {
     });
 
     document.getElementById('startWebhookBtn').addEventListener('click', startWebhookServer);
+
+    // Test multiple gifts button
+    document.getElementById('testMultipleBtn').addEventListener('click', async () => {
+        const giftCount = parseInt(document.getElementById('testGiftCount').value) || 10;
+        const serverUrl = window.location.origin;
+
+        try {
+            const response = await fetch(`${serverUrl}/test-webhook`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: 'TestUser',
+                    giftCount: giftCount,
+                    coinValue: giftCount * 1000, // Galaxy costs 1000 coins each
+                    giftId: '11046',
+                    giftName: 'Galaxy'
+                })
+            });
+
+            const result = await response.json();
+            logStatus(`Test sent: ${giftCount} Galaxies (${giftCount * 1000} coins)`);
+        } catch (error) {
+            logStatus(`ERROR: Test failed - ${error.message}`);
+        }
+    });
 
     // Copy button for webhook URL
     document.getElementById('copyUrlBtn').addEventListener('click', copyWebhookUrl);

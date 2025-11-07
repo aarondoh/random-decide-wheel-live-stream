@@ -206,11 +206,34 @@ app.post('/webhook', (req, res) => {
 
 // Test endpoint to simulate TikFinity webhook
 app.post('/test-webhook', (req, res) => {
+    const giftCount = req.body.giftCount || req.body.count || req.body.repeatCount || 1;
+    const coinValue = req.body.coinValue || req.body.coins || 0;
+    const giftId = req.body.giftId || '11046'; // Default to Galaxy
+    const giftName = req.body.giftName || 'Galaxy';
+
     const testData = {
         event: 'gift',
         username: req.body.username || 'TestUser',
-        giftCount: req.body.giftCount || req.body.count || 1,
-        coinValue: req.body.coinValue || req.body.coins || 0,
+        giftCount: giftCount,
+        coinValue: coinValue,
+        raw: {
+            value1: req.body.username || 'TestUser',
+            value2: '',
+            value3: giftId,
+            content: 'Add to Wheel',
+            avatar_url: 'https://example.com/avatar.jpg',
+            userId: '1234567890',
+            username: req.body.username || 'TestUser',
+            nickname: req.body.username || 'TestUser',
+            commandParams: '',
+            giftId: giftId,
+            giftName: giftName,
+            coins: coinValue.toString(),
+            repeatCount: giftCount.toString(),
+            triggerTypeId: '3',
+            tikfinityUserId: '1409195',
+            tikfinityUsername: 'aarondoh'
+        },
         timestamp: Date.now()
     };
 
