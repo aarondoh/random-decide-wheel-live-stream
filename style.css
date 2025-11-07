@@ -72,7 +72,7 @@ body {
 }
 
 .leaderboard-item:nth-child(3) {
-    background: linear-gradient(135deg, #cd7f32 0%, #e8a87c 100%);
+    background: linear-gradient(135deg, #d4a574 0%, #f4e4d4 100%);
     border-left-color: #cd7f32;
 }
 
