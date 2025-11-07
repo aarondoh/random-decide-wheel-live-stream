@@ -6,7 +6,7 @@ let userCoinBalances = {}; // Track remaining coins per user: {username: coinAmo
 let userStats = {}; // Track stats per user: {username: {totalCoins: X, submissions: Y}}
 let isSpinning = false;
 let webhookServer = null;
-let lastWebhookTimestamp = 0; // Track last webhook to prevent duplicates
+let processedWebhooks = new Set(); // Track processed webhooks by unique hash
 
 // Canvas setup
 const canvas = document.getElementById('wheelCanvas');
@@ -468,12 +468,23 @@ function handleWebhookData(data) {
     // Display the raw webhook data in debug section
     updateWebhookDebug(data);
 
-    // Prevent duplicate processing - ignore if same timestamp within 100ms
-    if (data.timestamp && Math.abs(data.timestamp - lastWebhookTimestamp) < 100) {
-        console.log('Duplicate webhook detected, ignoring...');
-        return;
+    // Prevent duplicate processing using unique hash
+    if (data.event === 'gift' && data.username) {
+        // Create unique identifier from username, coinValue, and timestamp
+        const webhookHash = `${data.username}-${data.coinValue}-${data.timestamp}`;
+
+        if (processedWebhooks.has(webhookHash)) {
+            console.log('Duplicate webhook detected (hash match), ignoring...', webhookHash);
+            return;
+        }
+
+        // Add to processed set and clean up old entries (keep last 100)
+        processedWebhooks.add(webhookHash);
+        if (processedWebhooks.size > 100) {
+            const firstItem = processedWebhooks.values().next().value;
+            processedWebhooks.delete(firstItem);
+        }
     }
-    lastWebhookTimestamp = data.timestamp || Date.now();
 
     if (data.event === 'gift' && data.username) {
         const username = data.username;
@@ -566,19 +577,37 @@ function handleWebhookData(data) {
     }
 }
 
+// Store webhook history
+let webhookHistory = [];
+
 // Update webhook debug display
 function updateWebhookDebug(data) {
     const debugEl = document.getElementById('webhookDebug');
     const timestamp = new Date().toLocaleTimeString();
 
-    // Format the data nicely
-    const formattedData = JSON.stringify(data, null, 2);
+    // Add to history (keep last 10)
+    webhookHistory.unshift({ timestamp, data });
+    if (webhookHistory.length > 10) {
+        webhookHistory.pop();
+    }
 
-    debugEl.innerHTML = `<strong>[${timestamp}] Latest Webhook:</strong>\n${formattedData}\n\n<strong>Extracted Values:</strong>\n` +
-        `- Username: ${data.username || 'NOT FOUND'}\n` +
-        `- Gift Count: ${data.giftCount || 'NOT FOUND (defaulting to 1)'}\n` +
-        `- Coin Value: ${data.coinValue || 'NOT FOUND (defaulting to 0)'}\n\n` +
-        `<strong>Raw Payload (from TikFinity):</strong>\n${JSON.stringify(data.raw, null, 2)}`;
+    // Build display with all history entries
+    let displayHTML = '<strong>Webhook History (Last 10):</strong>\n\n';
+
+    webhookHistory.forEach((entry, index) => {
+        const separator = index > 0 ? '\n\n' + '='.repeat(80) + '\n\n' : '';
+        const formattedData = JSON.stringify(entry.data, null, 2);
+
+        displayHTML += separator +
+            `<strong>[${entry.timestamp}] Webhook #${webhookHistory.length - index}:</strong>\n${formattedData}\n\n` +
+            `<strong>Extracted Values:</strong>\n` +
+            `- Username: ${entry.data.username || 'NOT FOUND'}\n` +
+            `- Gift Count: ${entry.data.giftCount || 'NOT FOUND (defaulting to 1)'}\n` +
+            `- Coin Value: ${entry.data.coinValue || 'NOT FOUND (defaulting to 0)'}\n\n` +
+            `<strong>Raw Payload:</strong>\n${JSON.stringify(entry.data.raw, null, 2)}`;
+    });
+
+    debugEl.innerHTML = displayHTML;
 }
 
 // Event listeners
@@ -642,6 +671,7 @@ function attachEventListeners() {
 
     // Clear debug log button
     document.getElementById('clearDebugBtn').addEventListener('click', () => {
+        webhookHistory = [];
         document.getElementById('webhookDebug').innerHTML = 'Debug log cleared. Waiting for next webhook...';
     });
 
